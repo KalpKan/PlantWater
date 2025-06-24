@@ -1,0 +1,27 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Build output
+frontend/build/
+backend/build/
+dist/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env and secrets
+.env
+.env.*
+*.env
+*.local
+plant-it-5e2fc-firebase-adminsdk-*.json
+
+# Firebase emulators
+firebase-debug.log
+firebase-emulator-suite-*

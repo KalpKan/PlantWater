@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "plants": {
+      "$userId": {
+        "$plantId": {
+          ".read": "auth != null && auth.uid == $userId",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.hasChildren(['minVWC', 'maxVWC', 'optimalVWC', 'wateringThreshold', 'currentVWC'])"
+        }
+      }
+    }
+  }
+} 
