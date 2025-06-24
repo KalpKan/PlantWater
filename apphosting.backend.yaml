@@ -1,0 +1,21 @@
+# This file configures the 'backend' environment for Firebase App Hosting.
+
+# Environment variables are accessible by your backend code.
+# Secrets are loaded from Google Cloud Secret Manager.
+env:
+  # Load sensitive API keys and credentials from Secret Manager.
+  # Ensure you have created these secrets in the Google Cloud console.
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
+  - variable: FIREBASE_PRIVATE_KEY
+    secret: FIREBASE_PRIVATE_KEY
+  - variable: FIREBASE_CLIENT_EMAIL
+    secret: FIREBASE_CLIENT_EMAIL
+  - variable: PLANTNET_API_KEY
+    secret: PLANTNET_API_KEY
+
+  # Set plain-text environment variables for non-sensitive configuration.
+  - variable: FIREBASE_PROJECT_ID
+    value: "plant-it-5e2fc"
+  - variable: FIREBASE_STORAGE_BUCKET
+    value: "plant-it-5e2fc.appspot.com" 
