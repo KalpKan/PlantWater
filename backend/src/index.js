@@ -79,16 +79,41 @@ testOpenAIConnection();
 
 // Middleware
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://plantit.yk',
-    'https://plantit.site',
-    'https://plant-it-5e2fc.web.app'
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://plantit.yk',
+      'https://plantit.site',
+      'https://plant-it-5e2fc.web.app'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
-app.options('*', cors());
+
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(204).end();
+});
+
 app.use(express.json());
 
 // Configure multer for file uploads
@@ -1035,6 +1060,15 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     port: port,
     environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Root endpoint for testing
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Plant It Backend is running!',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
   });
 });
 
