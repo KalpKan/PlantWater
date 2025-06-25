@@ -88,6 +88,7 @@ app.use(cors({
   ],
   credentials: true
 }));
+app.options('*', cors());
 app.use(express.json());
 
 // Configure multer for file uploads
