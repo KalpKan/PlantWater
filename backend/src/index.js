@@ -1027,6 +1027,16 @@ app.get('/api/test-firebase', async (req, res) => {
   }
 });
 
+// Simple health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    port: port,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 }); 
