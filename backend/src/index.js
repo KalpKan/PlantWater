@@ -82,7 +82,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://plantit.yk'
+    'https://plantit.yk',
+    'https://plantit.site',
+    'https://plant-it-5e2fc.web.app'
   ],
   credentials: true
 }));
