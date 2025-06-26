@@ -25,9 +25,5 @@ EXPOSE 8080
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Health check - use startup health endpoint with longer timeout
-HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=5 \
-  CMD curl -f http://localhost:8080/api/startup-health || exit 1
-
-# Start the application using the startup script
+# Start the application - EXACT Cloud Run pattern
 CMD ["npm", "start"] 

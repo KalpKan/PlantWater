@@ -19,7 +19,76 @@ console.log('🔧 Process ID:', process.pid);
 console.log('🔧 Node version:', process.version);
 console.log('🔧 Platform:', process.platform);
 
-// Initialize services first (non-blocking)
+// Enhanced CORS configuration for production
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://plantit.yk',
+      'https://plantit.site',
+      'https://plant-it-5e2fc.web.app',
+      'https://plant-it-5e2fc.firebaseapp.com'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Enhanced preflight request handling
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://plantit.yk',
+    'https://plantit.site',
+    'https://plant-it-5e2fc.web.app',
+    'https://plant-it-5e2fc.firebaseapp.com'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).end();
+});
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// Configure axios for Pl@ntNet API
+const plantNetAxios = axios.create({
+  baseURL: 'https://my-api.plantnet.org/v2',
+  timeout: 30000, // 30 seconds
+  maxContentLength: 5 * 1024 * 1024, // 5MB
+  maxBodyLength: 5 * 1024 * 1024, // 5MB
+  headers: {
+    'accept': 'application/json'
+  }
+});
+
+// Initialize services (non-blocking)
 async function initializeServices() {
   console.log('📋 Environment variables check:');
   console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
@@ -131,75 +200,6 @@ async function testOpenAIConnection() {
   
   console.error('All OpenAI models failed. Using fallback care instructions.');
 }
-
-// Enhanced CORS configuration for production
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://plantit.yk',
-      'https://plantit.site',
-      'https://plant-it-5e2fc.web.app',
-      'https://plant-it-5e2fc.firebaseapp.com'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
-
-// Enhanced preflight request handling
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://plantit.yk',
-    'https://plantit.site',
-    'https://plant-it-5e2fc.web.app',
-    'https://plant-it-5e2fc.firebaseapp.com'
-  ];
-  
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400'); // 24 hours
-  res.status(204).end();
-});
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Configure multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
-// Configure axios for Pl@ntNet API
-const plantNetAxios = axios.create({
-  baseURL: 'https://my-api.plantnet.org/v2',
-  timeout: 30000, // 30 seconds
-  maxContentLength: 5 * 1024 * 1024, // 5MB
-  maxBodyLength: 5 * 1024 * 1024, // 5MB
-  headers: {
-    'accept': 'application/json'
-  }
-});
 
 // Middleware to verify Firebase token
 const authenticateUser = async (req, res, next) => {
@@ -1214,48 +1214,9 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Start the server immediately to meet Cloud Run requirements
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${port}`);
-  console.log(`✅ Server listening on 0.0.0.0:${port}`);
-  console.log(`✅ Ready to accept connections`);
-}).on('error', (error) => {
-  console.error(`❌ Server failed to start:`, error);
-  console.error(`❌ Error code:`, error.code);
-  console.error(`❌ Error message:`, error.message);
-  process.exit(1);
-});
-
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  server.close(() => {
-    console.log('Server closed due to uncaught exception');
-    process.exit(1);
-  });
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  server.close(() => {
-    console.log('Server closed due to unhandled rejection');
-    process.exit(1);
-  });
+// Cloud Run startup - EXACT pattern from documentation
+app.listen(port, () => {
+  console.log('Hello world listening on port', port);
+  console.log('✅ Server ready to accept connections');
+  console.log('✅ Cloud Run container contract satisfied');
 }); 
