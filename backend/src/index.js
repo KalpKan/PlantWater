@@ -15,6 +15,9 @@ const port = process.env.PORT || 8080;
 console.log('🚀 Starting Plant It Backend...');
 console.log('🔧 Port configuration:', port);
 console.log('🔧 Process environment:', process.env.NODE_ENV);
+console.log('🔧 Process ID:', process.pid);
+console.log('🔧 Node version:', process.version);
+console.log('🔧 Platform:', process.platform);
 
 // Initialize services first (non-blocking)
 async function initializeServices() {
