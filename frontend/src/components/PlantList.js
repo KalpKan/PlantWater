@@ -60,6 +60,14 @@ function PlantList() {
   const [plantToDelete, setPlantToDelete] = useState(null);
   const [deletingPlant, setDeletingPlant] = useState(false);
 
+  // Helper function to get the correct API URL
+  const getApiUrl = (endpoint) => {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://backend--plant-it-5e2fc.us-central1.hosted.app'
+      : '';
+    return `${baseUrl}${endpoint}`;
+  };
+
   useEffect(() => {
     fetchPlants();
   }, []);
@@ -78,17 +86,85 @@ function PlantList() {
   const fetchPlants = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching plants...');
+      console.log('🔍 Current user:', auth.currentUser?.email);
+      
       const token = await auth.currentUser.getIdToken();
-      const response = await axios.get('/api/plants', {
+      console.log('🔍 Got Firebase token');
+      
+      // Use the correct backend URL for production
+      const apiUrl = getApiUrl('/api/plants');
+      
+      console.log('🔍 Making API call to:', apiUrl);
+      console.log('🔍 Environment:', process.env.NODE_ENV);
+      console.log('🔍 Base URL:', process.env.NODE_ENV === 'production' 
+        ? 'https://backend--plant-it-5e2fc.us-central1.hosted.app'
+        : 'localhost');
+      
+      // Test if backend is accessible at all
+      try {
+        const rootTest = await fetch(getApiUrl('/'), { mode: 'no-cors' });
+        console.log('🔍 Root endpoint test:', rootTest);
+      } catch (rootError) {
+        console.error('🔍 Root endpoint not accessible:', rootError);
+      }
+      
+      // Test health endpoint
+      try {
+        const healthTest = await fetch(getApiUrl('/api/health'), { mode: 'no-cors' });
+        console.log('🔍 Health endpoint test:', healthTest);
+      } catch (healthError) {
+        console.error('🔍 Health endpoint not accessible:', healthError);
+      }
+      
+      // First, let's test if the backend is accessible
+      try {
+        const testResponse = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('🔍 Test response status:', testResponse.status);
+        console.log('🔍 Test response headers:', testResponse.headers);
+      } catch (testError) {
+        console.error('🔍 Test request failed:', testError);
+      }
+      
+      const response = await axios.get(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
+      console.log('🔍 API response:', response.data);
       setPlants(response.data);
     } catch (error) {
-      console.error('Error fetching plants:', error);
-      setError('Failed to fetch plants. Please try again.');
+      console.error('❌ Error fetching plants:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error headers:', error.response?.headers);
+      console.error('❌ Error config:', error.config);
+      
+      if (error.code === 'ERR_NETWORK') {
+        console.error('❌ Network error - check if backend is accessible');
+        setError('Network error. Please check your connection and try again.');
+      } else if (error.response?.status === 401) {
+        console.error('❌ Authentication error');
+        setError('Authentication failed. Please sign in again.');
+      } else if (error.response?.status === 403) {
+        console.error('❌ Forbidden error');
+        setError('Access denied. Please check your permissions.');
+      } else if (error.response?.status === 404) {
+        console.error('❌ Not found error');
+        setError('API endpoint not found. Please contact support.');
+      } else if (error.response?.status >= 500) {
+        console.error('❌ Server error');
+        setError('Server error. Please try again later.');
+      } else {
+        setError('Failed to fetch plants. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,7 +184,7 @@ function PlantList() {
     try {
       setDiscoveringDevices(true);
       const token = await auth.currentUser.getIdToken();
-      const response = await axios.get('/api/discover-devices', {
+      const response = await axios.get(getApiUrl('/api/discover-devices'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -133,7 +209,7 @@ function PlantList() {
       setConnectingDevice(true);
       const token = await auth.currentUser.getIdToken();
       
-      const response = await axios.post(`/api/plants/${selectedPlant.id}/connect-device`, {
+      const response = await axios.post(getApiUrl(`/api/plants/${selectedPlant.id}/connect-device`), {
         deviceIP: device.ip,
         devicePort: device.port
       }, {
@@ -170,7 +246,7 @@ function PlantList() {
       setDisconnectingDevice(true);
       const token = await auth.currentUser.getIdToken();
       
-      await axios.post(`/api/plants/${plantId}/disconnect-device`, {}, {
+      await axios.post(getApiUrl(`/api/plants/${plantId}/disconnect-device`), {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -213,7 +289,7 @@ function PlantList() {
       setDeletingPlant(true);
       const token = await auth.currentUser.getIdToken();
       
-      await axios.delete(`/api/plants/${plantToDelete.id}`, {
+      await axios.delete(getApiUrl(`/api/plants/${plantToDelete.id}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -301,6 +377,10 @@ function PlantList() {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
+          <br />
+          <span style={{ fontSize: '0.9em', color: '#ffb4b4' }}>
+            (See browser console for technical details)
+          </span>
         </Alert>
       )}
 

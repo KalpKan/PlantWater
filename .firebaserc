@@ -1,0 +1,19 @@
+{
+  "projects": {
+    "default": "plant-it-5e2fc",
+    "firebase --help | grep -i apphosting": "flashcards-87f67"
+  },
+  "targets": {
+    "plant-it-5e2fc": {
+      "hosting": {
+        "main": [
+          "plant-it-5e2fc"
+        ],
+        "plantit-site": [
+          "plantit-site"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

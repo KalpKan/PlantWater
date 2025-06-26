@@ -15,53 +15,120 @@ const port = process.env.PORT || 8080;
 console.log('🚀 Starting Plant It Backend...');
 console.log('🔧 Port configuration:', port);
 console.log('🔧 Process environment:', process.env.NODE_ENV);
-console.log('📋 Environment variables check:');
-console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
-console.log('- FIREBASE_PRIVATE_KEY:', !!process.env.FIREBASE_PRIVATE_KEY);
-console.log('- FIREBASE_CLIENT_EMAIL:', !!process.env.FIREBASE_CLIENT_EMAIL);
-console.log('- OPENAI_API_KEY:', !!process.env.OPENAI_API_KEY);
-console.log('- PLANTNET_API_KEY:', !!process.env.PLANTNET_API_KEY);
 
-// Initialize Firebase Admin with error handling
-let firebaseInitialized = false;
-try {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    }),
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
+// Start the server immediately to meet Cloud Run requirements
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${port}`);
+  console.log(`✅ Server listening on 0.0.0.0:${port}`);
+  console.log(`✅ Ready to accept connections`);
+}).on('error', (error) => {
+  console.error(`❌ Server failed to start:`, error);
+  console.error(`❌ Error code:`, error.code);
+  console.error(`❌ Error message:`, error.message);
+  process.exit(1);
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-  firebaseInitialized = true;
-  console.log('✅ Firebase Admin initialized successfully');
-} catch (error) {
-  console.error('❌ Firebase Admin initialization failed:', error.message);
-  // Continue without Firebase for now
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  server.close(() => {
+    console.log('Server closed due to uncaught exception');
+    process.exit(1);
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    console.log('Server closed due to unhandled rejection');
+    process.exit(1);
+  });
+});
+
+// Initialize services after server is running
+async function initializeServices() {
+  console.log('📋 Environment variables check:');
+  console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
+  console.log('- FIREBASE_PRIVATE_KEY:', !!process.env.FIREBASE_PRIVATE_KEY);
+  console.log('- FIREBASE_CLIENT_EMAIL:', !!process.env.FIREBASE_CLIENT_EMAIL);
+  console.log('- OPENAI_API_KEY:', !!process.env.OPENAI_API_KEY);
+  console.log('- PLANTNET_API_KEY:', !!process.env.PLANTNET_API_KEY);
+
+  // Initialize Firebase Admin with error handling
+  let firebaseInitialized = false;
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
+    });
+    firebaseInitialized = true;
+    console.log('✅ Firebase Admin initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase Admin initialization failed:', error.message);
+    // Continue without Firebase for now
+  }
+
+  // Initialize OpenAI with error handling
+  let openaiInitialized = false;
+  let openai = null;
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      });
+      openaiInitialized = true;
+      console.log('✅ OpenAI initialized successfully');
+    } else {
+      console.log('⚠️ OpenAI API key not found, skipping OpenAI initialization');
+    }
+  } catch (error) {
+    console.error('❌ OpenAI initialization failed:', error.message);
+    // Continue without OpenAI for now
+  }
+
+  // Test OpenAI connection on startup (only if initialized) - non-blocking
+  if (openaiInitialized) {
+    testOpenAIConnection().catch(error => {
+      console.error('OpenAI test failed:', error);
+    });
+  }
+
+  // Make these variables available globally
+  global.firebaseInitialized = firebaseInitialized;
+  global.openaiInitialized = openaiInitialized;
+  global.openai = openai;
 }
 
-// Initialize OpenAI with error handling
-let openaiInitialized = false;
-let openai = null;
-try {
-  if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-    openaiInitialized = true;
-    console.log('✅ OpenAI initialized successfully');
-  } else {
-    console.log('⚠️ OpenAI API key not found, skipping OpenAI initialization');
-  }
-} catch (error) {
-  console.error('❌ OpenAI initialization failed:', error.message);
-  // Continue without OpenAI for now
-}
+// Initialize services after server starts
+initializeServices().catch(error => {
+  console.error('Service initialization failed:', error);
+});
 
 // Test OpenAI connection on startup (only if initialized)
 async function testOpenAIConnection() {
-  if (!openaiInitialized) {
+  if (!global.openaiInitialized) {
     console.log('⚠️ Skipping OpenAI test - not initialized');
     return;
   }
@@ -74,7 +141,7 @@ async function testOpenAIConnection() {
     try {
       console.log(`Testing with model: ${model}`);
       
-      const completion = await openai.chat.completions.create({
+      const completion = await global.openai.chat.completions.create({
         model: model,
         messages: [
           {
@@ -107,11 +174,6 @@ async function testOpenAIConnection() {
   
   console.error('All OpenAI models failed. Using fallback care instructions.');
 }
-
-// Test connection on startup (non-blocking)
-testOpenAIConnection().catch(error => {
-  console.error('OpenAI test failed:', error);
-});
 
 // Middleware
 app.use(cors({
@@ -170,6 +232,12 @@ const plantNetAxios = axios.create({
 // Middleware to verify Firebase token
 const authenticateUser = async (req, res, next) => {
   try {
+    // Check if Firebase is initialized
+    if (!global.firebaseInitialized) {
+      console.error('Firebase Admin not initialized');
+      return res.status(503).json({ error: 'Authentication service unavailable' });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -179,8 +247,19 @@ const authenticateUser = async (req, res, next) => {
     req.user = decodedToken;
     next();
   } catch (error) {
+    console.error('Authentication error:', error.message);
     res.status(401).json({ error: 'Invalid token' });
   }
+};
+
+// Helper function to check if Firebase is ready
+const checkFirebaseReady = (res) => {
+  if (!global.firebaseInitialized) {
+    console.error('Firebase Admin not initialized');
+    res.status(503).json({ error: 'Database service unavailable' });
+    return false;
+  }
+  return true;
 };
 
 // Plant identification endpoint
@@ -190,6 +269,10 @@ app.post('/api/identify',
   async (req, res) => {
     try {
       const userId = req.user.uid;
+      
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       // Check identify count
       const userRef = admin.firestore().collection('users').doc(userId);
       const userDoc = await userRef.get();
@@ -434,7 +517,7 @@ async function getPlantCareInstructions(speciesName) {
     try {
       console.log(`Getting care instructions for ${speciesName} using ${model}...`);
       
-      const completion = await openai.chat.completions.create({
+      const completion = await global.openai.chat.completions.create({
         model: model,
         messages: [
           {
@@ -592,7 +675,7 @@ app.post('/api/plants',
       }
 
       // Get watering guidelines from OpenAI
-      const completion = await openai.chat.completions.create({
+      const completion = await global.openai.chat.completions.create({
         model: "gpt-4",
         messages: [
           {
@@ -642,6 +725,9 @@ app.get('/api/plants',
   authenticateUser,
   async (req, res) => {
     try {
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       const plantsSnapshot = await admin.firestore()
         .collection('users')
         .doc(req.user.uid)
@@ -666,6 +752,9 @@ app.delete('/api/plants/:plantId',
   authenticateUser,
   async (req, res) => {
     try {
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       const { plantId } = req.params;
       const userId = req.user.uid;
 
@@ -724,6 +813,9 @@ app.post('/api/plants/:plantId/disconnect-device',
   authenticateUser,
   async (req, res) => {
     try {
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       const { plantId } = req.params;
       const userId = req.user.uid;
 
@@ -777,6 +869,9 @@ app.post('/api/plants/:plantId/moisture',
         return res.status(400).json({ errors: errors.array() });
       }
 
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+
       const { plantId } = req.params;
       const { currentVWC, userId, watered = false } = req.body;
 
@@ -825,6 +920,9 @@ app.post('/api/plants/:plantId/moisture',
 app.get('/api/plants/:plantId/moisture/:userId',
   async (req, res) => {
     try {
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       const { plantId, userId } = req.params;
 
       // Get from Realtime Database (faster for real-time data)
@@ -889,6 +987,9 @@ app.post('/api/plants/:plantId/connect-device',
         return res.status(400).json({ errors: errors.array() });
       }
 
+      // Check if Firebase is ready
+      if (!checkFirebaseReady(res)) return;
+      
       const { plantId } = req.params;
       const { deviceIP, devicePort = 8080 } = req.body;
       const userId = req.user.uid;
@@ -1096,8 +1197,18 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     port: port,
     environment: process.env.NODE_ENV || 'development',
-    firebaseInitialized,
-    openaiInitialized
+    firebaseInitialized: global.firebaseInitialized,
+    openaiInitialized: global.openaiInitialized
+  });
+});
+
+// Startup health check - responds immediately without dependencies
+app.get('/api/startup-health', (req, res) => {
+  res.json({ 
+    status: 'starting', 
+    timestamp: new Date().toISOString(),
+    port: port,
+    message: 'Server is starting up, services initializing...'
   });
 });
 
@@ -1107,8 +1218,8 @@ app.get('/', (req, res) => {
     message: 'Plant It Backend is running!',
     timestamp: new Date().toISOString(),
     cors: 'enabled',
-    firebaseInitialized,
-    openaiInitialized
+    firebaseInitialized: global.firebaseInitialized,
+    openaiInitialized: global.openaiInitialized
   });
 });
 
@@ -1125,19 +1236,8 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'Backend is working!',
     timestamp: new Date().toISOString(),
-    firebaseInitialized,
-    openaiInitialized,
+    firebaseInitialized: global.firebaseInitialized,
+    openaiInitialized: global.openaiInitialized,
     port
   });
-});
-
-app.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${port}`);
-  console.log(`✅ Server listening on 0.0.0.0:${port}`);
-  console.log(`✅ Ready to accept connections`);
-}).on('error', (error) => {
-  console.error(`❌ Server failed to start:`, error);
-  console.error(`❌ Error code:`, error.code);
-  console.error(`❌ Error message:`, error.message);
-  process.exit(1);
 }); 

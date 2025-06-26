@@ -23,6 +23,14 @@ function PlantUpload() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Helper function to get the correct API URL
+  const getApiUrl = (endpoint) => {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://backend--plant-it-5e2fc.us-central1.hosted.app'
+      : '';
+    return `${baseUrl}${endpoint}`;
+  };
+
   const onDrop = useCallback((acceptedFiles) => {
     setError(null);
     const file = acceptedFiles[0];
@@ -60,7 +68,7 @@ function PlantUpload() {
       formData.append('images', file);
 
       const token = await auth.currentUser.getIdToken();
-      const response = await axios.post('/api/identify', formData, {
+      const response = await axios.post(getApiUrl('/api/identify'), formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -150,6 +158,10 @@ function PlantUpload() {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
+          <br />
+          <span style={{ fontSize: '0.9em', color: '#ffb4b4' }}>
+            (See browser console for technical details)
+          </span>
         </Alert>
       )}
 

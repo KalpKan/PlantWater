@@ -16,8 +16,8 @@ const int errorMargin = 2;    // debounce margin
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // —————— Wi-Fi credentials ——————
-const char* ssid     = "Bell-HP";
-const char* password = "Fancyocean$011";
+const char* ssid     = "YOUR WIFI SSID";
+const char* password = "YOUR WIFI PASSWORD";
 
 // —————— HTTP Server ——————
 ESP8266WebServer server(8080);

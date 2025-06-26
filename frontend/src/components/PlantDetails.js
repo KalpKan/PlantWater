@@ -25,6 +25,14 @@ function PlantDetails() {
   const [error, setError] = useState(null);
   const [plantDetails, setPlantDetails] = useState(null);
 
+  // Helper function to get the correct API URL
+  const getApiUrl = (endpoint) => {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://backend--plant-it-5e2fc.us-central1.hosted.app'
+      : '';
+    return `${baseUrl}${endpoint}`;
+  };
+
   const { candidates, imageUrl, careInstructions, savedPlant } = location.state || {};
 
   useEffect(() => {
@@ -41,7 +49,7 @@ function PlantDetails() {
 
         try {
           const token = await auth.currentUser.getIdToken();
-          const response = await axios.get(`/api/plant/${candidates[0].species.scientificNameWithoutAuthor}/care`, {
+          const response = await axios.get(getApiUrl(`/api/plant/${candidates[0].species.scientificNameWithoutAuthor}/care`), {
             headers: {
               'Authorization': `Bearer ${token}`
             }
