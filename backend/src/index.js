@@ -16,53 +16,7 @@ console.log('🚀 Starting Plant It Backend...');
 console.log('🔧 Port configuration:', port);
 console.log('🔧 Process environment:', process.env.NODE_ENV);
 
-// Start the server immediately to meet Cloud Run requirements
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${port}`);
-  console.log(`✅ Server listening on 0.0.0.0:${port}`);
-  console.log(`✅ Ready to accept connections`);
-}).on('error', (error) => {
-  console.error(`❌ Server failed to start:`, error);
-  console.error(`❌ Error code:`, error.code);
-  console.error(`❌ Error message:`, error.message);
-  process.exit(1);
-});
-
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  server.close(() => {
-    console.log('Server closed due to uncaught exception');
-    process.exit(1);
-  });
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  server.close(() => {
-    console.log('Server closed due to unhandled rejection');
-    process.exit(1);
-  });
-});
-
-// Initialize services after server is running
+// Initialize services first (non-blocking)
 async function initializeServices() {
   console.log('📋 Environment variables check:');
   console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
@@ -121,7 +75,7 @@ async function initializeServices() {
   global.openai = openai;
 }
 
-// Initialize services after server starts
+// Initialize services immediately
 initializeServices().catch(error => {
   console.error('Service initialization failed:', error);
 });
@@ -175,7 +129,7 @@ async function testOpenAIConnection() {
   console.error('All OpenAI models failed. Using fallback care instructions.');
 }
 
-// Middleware
+// Enhanced CORS configuration for production
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -186,7 +140,8 @@ app.use(cors({
       'http://localhost:5173',
       'https://plantit.yk',
       'https://plantit.site',
-      'https://plant-it-5e2fc.web.app'
+      'https://plant-it-5e2fc.web.app',
+      'https://plant-it-5e2fc.firebaseapp.com'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -198,21 +153,35 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   preflightContinue: false,
   optionsSuccessStatus: 204
 }));
 
-// Handle preflight requests explicitly
+// Enhanced preflight request handling
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://plantit.yk',
+    'https://plantit.site',
+    'https://plant-it-5e2fc.web.app',
+    'https://plant-it-5e2fc.firebaseapp.com'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(204).end();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -1239,5 +1208,51 @@ app.get('/api/test', (req, res) => {
     firebaseInitialized: global.firebaseInitialized,
     openaiInitialized: global.openaiInitialized,
     port
+  });
+});
+
+// Start the server immediately to meet Cloud Run requirements
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${port}`);
+  console.log(`✅ Server listening on 0.0.0.0:${port}`);
+  console.log(`✅ Ready to accept connections`);
+}).on('error', (error) => {
+  console.error(`❌ Server failed to start:`, error);
+  console.error(`❌ Error code:`, error.code);
+  console.error(`❌ Error message:`, error.message);
+  process.exit(1);
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  server.close(() => {
+    console.log('Server closed due to uncaught exception');
+    process.exit(1);
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    console.log('Server closed due to unhandled rejection');
+    process.exit(1);
   });
 }); 
