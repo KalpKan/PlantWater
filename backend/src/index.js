@@ -134,7 +134,7 @@ async function initializeServices() {
     // Continue without OpenAI for now
   }
 
-  // Test OpenAI connection on startup (only if initialized) - non-blocking
+  // Test OpenAI connection on startup (only if initialized)
   if (openaiInitialized) {
     testOpenAIConnection().catch(error => {
       console.error('OpenAI test failed:', error);
@@ -147,7 +147,7 @@ async function initializeServices() {
   global.openai = openai;
 }
 
-// Initialize services immediately
+// Initialize services immediately (non-blocking)
 initializeServices().catch(error => {
   console.error('Service initialization failed:', error);
 });
