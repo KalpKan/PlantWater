@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node start.js",
+    "start:minimal": "node src/minimal-test.js",
     "dev": "nodemon src/index.js",
     "test": "jest"
   },
