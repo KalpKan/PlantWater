@@ -12,29 +12,61 @@ const sharp = require('sharp');
 const app = express();
 const port = process.env.PORT || 8080;
 
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  }),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
-});
+console.log('🚀 Starting Plant It Backend...');
+console.log('📋 Environment variables check:');
+console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
+console.log('- FIREBASE_PRIVATE_KEY:', !!process.env.FIREBASE_PRIVATE_KEY);
+console.log('- FIREBASE_CLIENT_EMAIL:', !!process.env.FIREBASE_CLIENT_EMAIL);
+console.log('- OPENAI_API_KEY:', !!process.env.OPENAI_API_KEY);
+console.log('- PLANTNET_API_KEY:', !!process.env.PLANTNET_API_KEY);
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize Firebase Admin with error handling
+let firebaseInitialized = false;
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    }),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
+  });
+  firebaseInitialized = true;
+  console.log('✅ Firebase Admin initialized successfully');
+} catch (error) {
+  console.error('❌ Firebase Admin initialization failed:', error.message);
+  // Continue without Firebase for now
+}
 
-// Test OpenAI connection on startup
+// Initialize OpenAI with error handling
+let openaiInitialized = false;
+let openai = null;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+    openaiInitialized = true;
+    console.log('✅ OpenAI initialized successfully');
+  } else {
+    console.log('⚠️ OpenAI API key not found, skipping OpenAI initialization');
+  }
+} catch (error) {
+  console.error('❌ OpenAI initialization failed:', error.message);
+  // Continue without OpenAI for now
+}
+
+// Test OpenAI connection on startup (only if initialized)
 async function testOpenAIConnection() {
-  const models = ["gpt-4o-mini", "gpt-4o"]; // Try multiple models
+  if (!openaiInitialized) {
+    console.log('⚠️ Skipping OpenAI test - not initialized');
+    return;
+  }
+  
+  const models = ["gpt-4o-mini", "gpt-4o"];
   
   console.log('Testing OpenAI connection...');
-  console.log('API Key present:', !!process.env.OPENAI_API_KEY);
-  console.log('API Key starts with:', process.env.OPENAI_API_KEY?.substring(0, 7) + '...');
   
   for (const model of models) {
     try {
@@ -52,21 +84,21 @@ async function testOpenAIConnection() {
       });
       
       console.log(`OpenAI connection successful with ${model}!`);
-      return; // Exit if successful
+      return;
     } catch (error) {
       console.error(`OpenAI connection failed with ${model}:`, error.message);
       if (error.code === 'invalid_api_key') {
         console.error('Invalid API key. Please check your OPENAI_API_KEY environment variable.');
-        return; // Don't try other models if API key is invalid
+        return;
       } else if (error.code === 'model_not_found') {
         console.error(`Model ${model} not found. Trying next model...`);
-        continue; // Try next model
+        continue;
       } else if (error.status === 429) {
         console.error('OpenAI quota exceeded. Using fallback care instructions until quota resets.');
-        return; // Don't try other models if quota is exceeded
+        return;
       } else {
         console.error(`OpenAI error with ${model}:`, error.message);
-        continue; // Try next model
+        continue;
       }
     }
   }
@@ -74,8 +106,10 @@ async function testOpenAIConnection() {
   console.error('All OpenAI models failed. Using fallback care instructions.');
 }
 
-// Test connection on startup
-testOpenAIConnection();
+// Test connection on startup (non-blocking)
+testOpenAIConnection().catch(error => {
+  console.error('OpenAI test failed:', error);
+});
 
 // Middleware
 app.use(cors({
@@ -1059,7 +1093,9 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     port: port,
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    firebaseInitialized,
+    openaiInitialized
   });
 });
 
@@ -1068,7 +1104,9 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'Plant It Backend is running!',
     timestamp: new Date().toISOString(),
-    cors: 'enabled'
+    cors: 'enabled',
+    firebaseInitialized,
+    openaiInitialized
   });
 });
 
