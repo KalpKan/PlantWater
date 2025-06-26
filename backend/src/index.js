@@ -13,6 +13,8 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 console.log('🚀 Starting Plant It Backend...');
+console.log('🔧 Port configuration:', port);
+console.log('🔧 Process environment:', process.env.NODE_ENV);
 console.log('📋 Environment variables check:');
 console.log('- FIREBASE_PROJECT_ID:', !!process.env.FIREBASE_PROJECT_ID);
 console.log('- FIREBASE_PRIVATE_KEY:', !!process.env.FIREBASE_PRIVATE_KEY);
@@ -1110,6 +1112,32 @@ app.get('/', (req, res) => {
   });
 });
 
+// Test basic Express functionality
+app.get('/api/basic-test', (req, res) => {
+  res.json({ 
+    message: 'Basic Express functionality working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Simple test endpoint that doesn't require any dependencies
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!',
+    timestamp: new Date().toISOString(),
+    firebaseInitialized,
+    openaiInitialized,
+    port
+  });
+});
+
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`✅ Server running on port ${port}`);
+  console.log(`✅ Server listening on 0.0.0.0:${port}`);
+  console.log(`✅ Ready to accept connections`);
+}).on('error', (error) => {
+  console.error(`❌ Server failed to start:`, error);
+  console.error(`❌ Error code:`, error.code);
+  console.error(`❌ Error message:`, error.message);
+  process.exit(1);
 }); 
