@@ -1,5 +1,7 @@
 # ESP32 Plant Watering Device Setup
 
+> **Hardware is optional.** The web app works without any device: until an ESP8266/ESP32 reports a reading, each plant shows a clearly labelled *Simulated sensor* with a realistic moisture curve and a working *Water now* button. The routes and buttons below are labelled "hardware required" in the app and only matter once you build the device.
+
 This ESP32 code creates a web server that can receive plant configuration data from the Plant It web app.
 
 ## Features

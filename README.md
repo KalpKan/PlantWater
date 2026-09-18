@@ -63,7 +63,7 @@ All real values are in **Vercel → project `plantit` → Settings → Environme
 
 Firebase stays on the free **Spark** plan. Only Authentication, Firestore and the Realtime Database are used; Firebase Storage is not (it now requires the paid Blaze plan), which is why photos live in Supabase. **Never upgrade Firebase to Blaze for this app.**
 
-Sign-in works from these hosts because they are on Firebase Authentication's authorized-domain list: `plantit.kalpkan.com`, `plantit.vercel.app`, `localhost`. A new host must be added there (Firebase console → Authentication → Settings → Authorized domains) or Google sign-in shows `auth/unauthorized-domain`.
+Sign-in works from these hosts because they are on Firebase Authentication's authorized-domain list: `plantit.kalpkan.com`, `plantit-kappa.vercel.app` (Vercel's fallback address for this project), `localhost`. A new host must be added there (Firebase console → Authentication → Settings → Authorized domains) or Google sign-in shows `auth/unauthorized-domain`.
 
 ## API
 
