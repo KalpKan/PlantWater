@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -15,6 +15,8 @@ import GoogleLogo from '../assets/Google__G__logo.png';
 function Login() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     // If user is already logged in, redirect to home
@@ -24,6 +26,9 @@ function Login() {
   }, [currentUser, navigate]);
 
   const handleGoogleLogin = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMessage('');
     try {
       const provider = new GoogleAuthProvider();
       // Force account selection to prevent auto-login
@@ -34,15 +39,18 @@ function Login() {
       await signInWithPopup(auth, provider);
       navigate('/');
     } catch (error) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        alert('Sign-in was cancelled. Please try again.');
+      // Never use alert() here: a native dialog freezes the page and hides the retry button.
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        setMessage('Sign-in was cancelled. Click the button to try again.');
       } else if (error.code === 'auth/popup-blocked') {
-        alert('Popup was blocked by your browser. Please allow popups for this site and try again.');
+        setMessage('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.');
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert('This site is not yet on the Firebase authorized-domain list. Error: ' + error.message);
+        setMessage('This address is not on the app\'s allowed sign-in list yet (' + window.location.hostname + ').');
       } else {
-        alert('Sign-in failed. Please try again. Error: ' + error.message);
+        setMessage('Sign-in failed: ' + (error.message || 'unknown error') + '. Please try again.');
       }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -82,6 +90,7 @@ function Login() {
           size="large"
           fullWidth
           onClick={handleGoogleLogin}
+          disabled={busy}
           sx={{
             background: 'linear-gradient(90deg, #00DC82 0%, #00b86b 100%)',
             color: '#fff',
@@ -106,8 +115,13 @@ function Login() {
             />
           }
         >
-          Sign in with Google
+          {busy ? 'Opening Google sign-in…' : 'Sign in with Google'}
         </Button>
+        {message && (
+          <Typography role="alert" variant="body2" align="center" sx={{ color: '#ffb4a2', mb: 2 }}>
+            {message}
+          </Typography>
+        )}
         <Typography variant="body2" color="text.secondary" align="center">
           Sign in to start identifying and managing your plants
         </Typography>

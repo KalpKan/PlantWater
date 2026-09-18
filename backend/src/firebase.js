@@ -36,6 +36,7 @@ function getFirebase(env = process.env) {
     rtdb: admin.database(app),
     auth: admin.auth(app),
     FieldValue: admin.firestore.FieldValue,
+    Timestamp: admin.firestore.Timestamp,
   };
   return cached;
 }
