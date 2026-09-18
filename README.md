@@ -31,7 +31,7 @@ npm --prefix frontend install    # web app dependencies
 cp .env.example .env             # then fill in the Firebase and Supabase values
 npm run dev:api                  # API on http://localhost:3001  (check http://localhost:3001/api/health: 200 once .env has the Firebase values, 503 "Firebase Admin not configured" before)
 npm run dev:web                  # web app on http://localhost:3000 (proxies /api to :3001)
-npm test                         # unit + route tests (spend guard, simulated sensor, demo plants, API, device secret)
+npm test                         # API tests (spend guard, simulated sensor, demo plants, routes, device secret, legacy photos) then the frontend tests (photo placeholder)
 ```
 
 The web app's own settings (`REACT_APP_*`) go in `frontend/.env.local`; the API's settings go in the root `.env`. Neither file is committed.
@@ -63,6 +63,8 @@ All real values are in **Vercel → project `plantit` → Settings → Environme
 
 Firebase stays on the free **Spark** plan. Only Authentication, Firestore and the Realtime Database are used; Firebase Storage is not (it now requires the paid Blaze plan), which is why photos live in Supabase. **Never upgrade Firebase to Blaze for this app.**
 
+**Photos of plants added before September 2026** were stored in Firebase Storage. Those files still exist, but Google refuses every download ("billing account ... closed", HTTP 403), even to the app's own service account, so they cannot be copied to Supabase without paying for Blaze. The app therefore shows a labelled placeholder ("Photo no longer available") on those plants instead of a broken image; the API reports them as `photoStatus: "unavailable"` and keeps the old link in `legacyImageUrl`. To get a photo back, add the plant again from a photo (new uploads go to Supabase and keep working).
+
 Sign-in works from these hosts because they are on Firebase Authentication's authorized-domain list: `plantit.kalpkan.com`, `plantit-kappa.vercel.app` (Vercel's fallback address for this project), `localhost`. A new host must be added there (Firebase console → Authentication → Settings → Authorized domains) or Google sign-in shows `auth/unauthorized-domain`.
 
 ## API
@@ -73,7 +75,7 @@ All routes are under `/api`. Routes marked "signed in" need `Authorization: Bear
 |---|---|---|
 | `GET /api/health` | anyone | `{ ok, service: "plantit", firestore: "ok"\|"error", photos, identification: "plantnet"\|"demo", care: "openai"\|"bundled", image, spend }`; 503 when Firestore does not answer |
 | `POST /api/identify` (multipart field `image`) | signed in | identify, write the care guide, store the photo, save the plant |
-| `GET /api/plants`, `DELETE /api/plants/:id` | signed in | list / delete (also removes the photo) |
+| `GET /api/plants`, `DELETE /api/plants/:id` | signed in | list / delete (also removes the photo). Each plant carries `photoStatus`: `ok`, `none`, or `unavailable` (pre-2026 Firebase Storage photo that can no longer be downloaded; `imageUrl` is then `null`) |
 | `GET /api/plants/:id/device` | signed in | `{ mode: "simulated"\|"hardware", reading, events }` |
 | `POST /api/plants/:id/water` | signed in | logs a watering event; simulated mode resets the reading, hardware mode leaves the reading to the sensor's next report |
 | `GET /api/plant/:species/care` | signed in | care guide only |

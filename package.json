@@ -10,7 +10,9 @@
     "dev:api": "node backend/src/index.js",
     "dev:web": "npm --prefix frontend start",
     "build": "npm --prefix frontend ci --no-audit --no-fund && npm --prefix frontend run build",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand && npm run test:web",
+    "test:api": "jest --runInBand",
+    "test:web": "CI=true npm --prefix frontend test -- --watchAll=false"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

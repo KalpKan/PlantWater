@@ -5,7 +5,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardMedia,
   Button,
   CircularProgress,
   LinearProgress,
@@ -33,13 +32,10 @@ import SensorsIcon from '@mui/icons-material/Sensors';
 import { auth } from '../firebase';
 import { apiUrl } from '../config';
 import SensorPanel from './SensorPanel';
+import PlantPhoto from './PlantPhoto';
 
 const gridVariants = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const cardVariants = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0 } };
-
-const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#1f2a24"/><text x="200" y="108" font-family="Inter,Arial" font-size="18" fill="#00DC82" text-anchor="middle">no photo</text></svg>'
-);
 
 function formatDate(value) {
   if (!value) return 'Unknown';
@@ -197,7 +193,7 @@ function PlantList() {
                     sx={{ height: '100%', cursor: 'pointer', background: 'linear-gradient(135deg, #23272F 60%, #18181B 100%)', color: '#fff' }}
                     onClick={() => setSelectedPlant(plant)}
                   >
-                    <CardMedia component="img" height="200" image={plant.imageUrl || PLACEHOLDER} alt={plant.species} sx={{ objectFit: 'cover' }} />
+                    <PlantPhoto plant={plant} height={200} />
                     <CardContent>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, gap: 1 }}>
                         <Typography variant="h6" gutterBottom sx={{ fontStyle: 'italic' }}>
@@ -255,7 +251,7 @@ function PlantList() {
             <DialogContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                  <img src={selectedPlant.imageUrl || PLACEHOLDER} alt={selectedPlant.species} style={{ width: '100%', borderRadius: 8 }} />
+                  <PlantPhoto plant={selectedPlant} dialog />
                   <Box sx={{ mt: 1 }}>
                     <Typography variant="body2" color="text.secondary">Family: {selectedPlant.family}</Typography>
                     <Typography variant="body2" color="text.secondary">Added: {formatDate(selectedPlant.createdAt)}</Typography>

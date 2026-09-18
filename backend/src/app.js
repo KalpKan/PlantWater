@@ -52,10 +52,31 @@ function secretsMatch(a, b) {
   return x.length > 0 && x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
+/**
+ * Photos added before 2026-09-18 were stored in Firebase Storage
+ * (storage.googleapis.com/<project>.firebasestorage.app or firebasestorage.googleapis.com).
+ * On the Spark plan every download of those objects answers 403 ("billing account ... closed"),
+ * even with the service account, so they cannot be migrated to Supabase; the API hides the dead
+ * URL and tells the browser the photo is unavailable instead of letting it render a broken image.
+ */
+const LEGACY_PHOTO_HOSTS = /^https?:\/\/(storage\.googleapis\.com\/[^/]+\.(firebasestorage\.app|appspot\.com)\/|firebasestorage\.googleapis\.com\/)/;
+
+function isLegacyFirebasePhoto(url) {
+  return typeof url === 'string' && LEGACY_PHOTO_HOSTS.test(url);
+}
+
+function photoFields(data) {
+  if (isLegacyFirebasePhoto(data.imageUrl)) {
+    return { imageUrl: null, legacyImageUrl: data.imageUrl, photoStatus: 'unavailable' };
+  }
+  return { imageUrl: data.imageUrl || null, photoStatus: data.imageUrl ? 'ok' : 'none' };
+}
+
 function serializePlant(id, data) {
   const { deviceSecret, ...rest } = data; // the per-plant device secret only ever goes to the ESP8266
   return {
     ...rest,
+    ...photoFields(data),
     id,
     createdAt: toIso(data.createdAt),
     lastWatered: toIso(data.lastWatered),
@@ -442,4 +463,4 @@ function createApp(deps = {}) {
   return app;
 }
 
-module.exports = { createApp, serializePlant, toMs, isPrivateIPv4, parsePort };
+module.exports = { createApp, serializePlant, isLegacyFirebasePhoto, toMs, isPrivateIPv4, parsePort };

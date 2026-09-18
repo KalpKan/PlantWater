@@ -278,3 +278,35 @@ describe('connect-device (hardware required)', () => {
     expect(posts).toEqual([]);
   });
 });
+
+describe('legacy Firebase Storage photos', () => {
+  // Plants added before 2026-09-18 point at storage.googleapis.com/plant-it-5e2fc.firebasestorage.app,
+  // which answers 403 on the Spark plan (billing closed), so the API must not hand that URL to the browser.
+  test('GET /api/plants replaces an unreachable Firebase Storage URL with photoStatus: "unavailable"', async () => {
+    const firebase = fakeFirebase();
+    firebase.db.store.set('users/u1/plants/old1', {
+      species: 'Pilea peperomioides', commonName: 'Chinese money plant', family: 'Urticaceae',
+      imageUrl: 'https://storage.googleapis.com/plant-it-5e2fc.firebasestorage.app/plants/u1/old1/plant_image.jpg',
+      createdAt: { toMillis: () => Date.parse('2025-06-19T01:13:09Z') },
+    });
+    firebase.db.store.set('users/u1/plants/new1', {
+      species: 'Epipremnum aureum', commonName: 'Pothos', family: 'Araceae',
+      imageUrl: 'https://yzppfufqaekgaxcrsqxp.supabase.co/storage/v1/object/public/plantit-photos/u1/new1.jpg',
+      photoPath: 'u1/new1.jpg',
+      createdAt: { toMillis: () => t0 },
+    });
+    firebase.db.store.set('users/u1/plants/none1', {
+      species: 'Ficus lyrata', commonName: 'Fiddle-leaf fig', family: 'Moraceae', imageUrl: null,
+      createdAt: { toMillis: () => t0 },
+    });
+    const app = createApp({ firebase, env, log, now: () => t0 });
+    const res = await request(app).get('/api/plants').set('Authorization', 'Bearer good');
+    expect(res.status).toBe(200);
+    const byId = Object.fromEntries(res.body.map((p) => [p.id, p]));
+    expect(byId.old1.imageUrl).toBeNull();
+    expect(byId.old1.photoStatus).toBe('unavailable');
+    expect(byId.old1.legacyImageUrl).toMatch(/^https:\/\/storage\.googleapis\.com\//);
+    expect(byId.new1).toMatchObject({ imageUrl: expect.stringContaining('/plantit-photos/u1/new1.jpg'), photoStatus: 'ok' });
+    expect(byId.none1).toMatchObject({ imageUrl: null, photoStatus: 'none' });
+  });
+});
