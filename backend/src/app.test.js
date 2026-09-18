@@ -28,6 +28,7 @@ function fakeFirestore() {
   const db = {
     store,
     collection: (name) => colRef(name),
+    async recursiveDelete(ref) { for (const p of [...store.keys()]) if (p === ref.path || p.startsWith(`${ref.path}/`)) store.delete(p); },
     async runTransaction(fn) {
       return fn({ get: (ref) => ref.get(), set: async (ref, data) => ref.update(data) });
     },
@@ -135,5 +136,22 @@ describe('identify (demo path) and the simulated device', () => {
     const bad = await request(app).post('/api/identify').set('Authorization', 'Bearer good').attach('image', Buffer.alloc(20000, 1), { filename: 'x.txt', contentType: 'text/plain' });
     expect(bad.status).toBe(400);
     expect((await request(app).get('/api/nope')).status).toBe(404);
+  });
+});
+
+describe('delete plant', () => {
+  test('removes the plant, its events subcollection, and the RTDB mirror', async () => {
+    const firebase = fakeFirebase();
+    const app = createApp({ firebase, env, log, now: () => t0 });
+    await firebase.db.collection('users').doc('u1').collection('plants').doc('p1').set({ species: 'Ficus lyrata', minVWC: 15, maxVWC: 45, wateringThreshold: 20 });
+    await request(app).post('/api/plants/p1/water').set('Authorization', 'Bearer good');
+    expect([...firebase.db.store.keys()].filter((k) => k.startsWith('users/u1/plants/p1/events/'))).toHaveLength(1);
+
+    const res = await request(app).delete('/api/plants/p1').set('Authorization', 'Bearer good');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
+    expect([...firebase.db.store.keys()].filter((k) => k.startsWith('users/u1/plants/p1'))).toHaveLength(0);
+    expect(firebase.rtdbWrites).toContainEqual(['remove', 'plants/u1/p1']);
+    expect((await request(app).delete('/api/plants/p1').set('Authorization', 'Bearer good')).status).toBe(404);
   });
 });

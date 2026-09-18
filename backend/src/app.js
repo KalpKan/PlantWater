@@ -227,7 +227,8 @@ function createApp(deps = {}) {
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
     const data = doc.data();
-    await ref.delete();
+    // Firestore never cascades: recursiveDelete also clears the plant's `events` subcollection.
+    await fb().db.recursiveDelete(ref);
     try { await fb().rtdb.ref(`plants/${uid}/${req.params.plantId}`).remove(); } catch (e) { log.error('RTDB delete failed:', e.message); }
     if (data.photoPath && photos.isConfigured(env)) {
       try { await photos.deletePhoto(data.photoPath); } catch (e) { log.error('Photo delete failed:', e.message); }
