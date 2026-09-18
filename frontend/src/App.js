@@ -141,21 +141,8 @@ const theme = createTheme({
 
 function PrivateRoute({ children }) {
   const { currentUser, loading } = useAuth();
-  
-  console.log('PrivateRoute - currentUser:', currentUser);
-  console.log('PrivateRoute - loading:', loading);
-  
-  if (loading) {
-    console.log('PrivateRoute - Still loading, showing loading state');
-    return <div>Loading...</div>;
-  }
-  
-  if (!currentUser) {
-    console.log('PrivateRoute - No user, redirecting to login');
-    return <Navigate to="/login" />;
-  }
-  
-  console.log('PrivateRoute - User authenticated, showing children');
+  if (loading) return <div>Loading...</div>;
+  if (!currentUser) return <Navigate to="/login" />;
   return children;
 }
 

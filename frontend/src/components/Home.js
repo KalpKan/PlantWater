@@ -22,7 +22,7 @@ function Home() {
       </Typography>
       
       <Typography variant="body1" color="text.secondary" paragraph>
-        Your personal plant identification and care assistant. Upload photos of plants to identify them and get detailed care instructions.
+        Your personal plant identification and care assistant. Upload a photo to identify a plant, get care instructions, and keep an eye on its soil moisture. No hardware needed: every plant gets a simulated sensor you can water; a real ESP8266 takes over when you connect one.
       </Typography>
 
       <Grid container spacing={3} sx={{ mt: 2 }}>
@@ -104,10 +104,10 @@ function Home() {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  3. Care
+                  3. Care and water
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Get detailed care instructions specific to your plant.
+                  Get care instructions, watch the soil moisture (simulated until an ESP8266 reports), and press Water now.
                 </Typography>
               </CardContent>
             </Card>

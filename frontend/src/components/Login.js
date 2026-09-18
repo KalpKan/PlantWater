@@ -6,7 +6,6 @@ import {
   Box,
   Button,
   Typography,
-  Container,
   Paper,
   Divider,
 } from '@mui/material';
@@ -26,34 +25,21 @@ function Login() {
 
   const handleGoogleLogin = async () => {
     try {
-      console.log('Starting Google sign-in process...');
       const provider = new GoogleAuthProvider();
       // Force account selection to prevent auto-login
       provider.setCustomParameters({
         prompt: 'select_account'
       });
       
-      console.log('Provider created, attempting sign-in...');
-      const result = await signInWithPopup(auth, provider);
-      console.log('Sign-in successful:', result.user.email);
-      
-      // Store the Firebase ID token
-      const token = await result.user.getIdToken();
-      localStorage.setItem('firebaseToken', token);
-      console.log('Token stored, navigating to home...');
-      
-      // Navigate to home page
+      await signInWithPopup(auth, provider);
       navigate('/');
     } catch (error) {
-      console.error('Error signing in with Google:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      
-      // Show user-friendly error message
       if (error.code === 'auth/popup-closed-by-user') {
         alert('Sign-in was cancelled. Please try again.');
       } else if (error.code === 'auth/popup-blocked') {
         alert('Popup was blocked by your browser. Please allow popups for this site and try again.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert('This site is not yet on the Firebase authorized-domain list. Error: ' + error.message);
       } else {
         alert('Sign-in failed. Please try again. Error: ' + error.message);
       }

@@ -1,5 +1,37 @@
 {
+  "name": "plant-it",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Plant It: identify a plant from a photo, get care guidance, and water it (simulated sensor, or a real ESP8266). React frontend + Express API on Vercel, Firebase Spark for data and sign-in, Supabase Storage for photos.",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev:api": "node backend/src/index.js",
+    "dev:web": "npm --prefix frontend start",
+    "build": "npm --prefix frontend ci --no-audit --no-fund && npm --prefix frontend run build",
+    "test": "jest --runInBand"
+  },
   "dependencies": {
-    "framer-motion": "^12.18.1"
+    "@supabase/supabase-js": "^2.45.0",
+    "axios": "^1.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.5.0",
+    "form-data": "^4.0.0",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.60.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 10000,
+    "roots": [
+      "<rootDir>/backend"
+    ]
   }
 }

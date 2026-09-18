@@ -6,7 +6,6 @@ yarn-error.log*
 
 # Build output
 frontend/build/
-backend/build/
 dist/
 *.log
 
@@ -14,13 +13,17 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Env and secrets
+# Env and secrets (real values live only in Vercel; .env.example is tracked)
 .env
-.env.*
-*.env
-*.local
-plant-it-5e2fc-firebase-adminsdk-*.json
+.env.local
+.env*.local
+!.env.example
+*-firebase-adminsdk-*.json
 
-# Firebase emulators
+# Firebase CLI cache / emulators
+.firebase/
 firebase-debug.log
 firebase-emulator-suite-*
+
+# Vercel local link
+.vercel
