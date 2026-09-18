@@ -1,6 +1,8 @@
 # ESP32 Plant Watering Device Setup
 
 > **Hardware is optional.** The web app works without any device: until an ESP8266/ESP32 reports a reading, each plant shows a clearly labelled *Simulated sensor* with a realistic moisture curve and a working *Water now* button. The routes and buttons below are labelled "hardware required" in the app and only matter once you build the device.
+>
+> **Not implemented yet:** the firmware receives its configuration (moisture targets, `userId`, `plantId`, `deviceSecret`) but does not send readings back to the app (`POST /api/plants/:id/moisture` with the `X-Device-Secret` header is documented below and tested on the server, but no code in `plant_watering_esp8266.ino` calls it). So the web app never leaves *Simulated sensor* for a real device today. That reporting loop is scheduled for the hardening pass (T5.b).
 
 This ESP32 code creates a web server that can receive plant configuration data from the Plant It web app.
 

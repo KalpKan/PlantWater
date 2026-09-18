@@ -176,6 +176,32 @@ describe('identify (demo path) and the simulated device', () => {
     expect(rt[2]).toEqual({ lastWatered: '2026-09-18T12:00:00.000Z' });
   });
 
+  test('the "waiting for the sensor" flag survives a reload and clears on the next device report', async () => {
+    const firebase = fakeFirebase();
+    const app = createApp({ firebase, env, log, now: () => t0 });
+    const ref = firebase.db.collection('users').doc('u1').collection('plants').doc('p1');
+    await ref.set({ species: 'Ficus lyrata', minVWC: 15, maxVWC: 45, wateringThreshold: 20, currentVWC: 18.5, deviceConnected: true, deviceSecret: 's', deviceReportedAt: { toMillis: () => t0 - 60000 } });
+    await request(app).post('/api/plants/p1/water').set('Authorization', 'Bearer good');
+    // Persisted on the plant doc, so a fresh GET (a page reload) still shows the note.
+    expect((await ref.get()).data().pendingDeviceReport).toBe(true);
+    const dev = await request(app).get('/api/plants/p1/device').set('Authorization', 'Bearer good');
+    expect(dev.body.reading).toMatchObject({ source: 'device', currentVWC: 18.5, pendingDeviceReport: true });
+    const list = await request(app).get('/api/plants').set('Authorization', 'Bearer good');
+    expect(list.body[0].pendingDeviceReport).toBe(true);
+    // The device's next report owns the reading again.
+    const report = await request(app).post('/api/plants/p1/moisture').set('X-Device-Secret', 's').send({ userId: 'u1', currentVWC: 41 });
+    expect(report.status).toBe(200);
+    expect((await ref.get()).data().pendingDeviceReport).toBe(false);
+    const after = await request(app).get('/api/plants/p1/device').set('Authorization', 'Bearer good');
+    expect(after.body.reading.currentVWC).toBe(41);
+    expect(after.body.reading.pendingDeviceReport).toBe(false);
+    // A simulated plant never carries the flag.
+    await firebase.db.collection('users').doc('u1').collection('plants').doc('p2').set({ species: 'Ficus lyrata', minVWC: 15, maxVWC: 45, wateringThreshold: 20 });
+    const sim = await request(app).post('/api/plants/p2/water').set('Authorization', 'Bearer good');
+    expect(sim.body.reading.pendingDeviceReport).toBeUndefined();
+    expect((await firebase.db.collection('users').doc('u1').collection('plants').doc('p2').get()).data().pendingDeviceReport).toBeUndefined();
+  });
+
   test('rejects uploads that are not images and unknown API routes', async () => {
     const app = createApp({ firebase: fakeFirebase(), env, log, now: () => t0 });
     const bad = await request(app).post('/api/identify').set('Authorization', 'Bearer good').attach('image', Buffer.alloc(20000, 1), { filename: 'x.txt', contentType: 'text/plain' });

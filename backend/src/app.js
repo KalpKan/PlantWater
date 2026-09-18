@@ -271,6 +271,8 @@ function createApp(deps = {}) {
         needsWater: (Number(data.currentVWC) || 0) <= (Number(data.wateringThreshold) || 20),
         lastWatered: toIso(data.lastWatered), deviceReportedAt: toIso(data.deviceReportedAt), deviceIP: data.deviceIP || null,
         minVWC: data.minVWC, maxVWC: data.maxVWC, optimalVWC: data.optimalVWC, wateringThreshold: data.wateringThreshold,
+        // true between a manual "Water now" and the device's next report (persisted, so it survives a reload)
+        pendingDeviceReport: data.pendingDeviceReport === true,
       };
     }
     return simulateReading({
@@ -300,17 +302,20 @@ function createApp(deps = {}) {
     const data = doc.data();
     const mode = deviceHasReported(data) ? 'hardware' : 'simulated';
     const before = readingFor(doc.id, data);
-    const w = waterPlant({ nowMs: now(), maxVWC: data.maxVWC });
     const { Timestamp } = fb();
     let event;
     let update;
     let rt;
     if (mode === 'hardware') {
-      // A real sensor owns currentVWC: log the manual watering and wait for the device's next report.
-      event = { type: 'watered', source: 'manual', at: w.lastWatered, vwcBefore: before.currentVWC };
-      update = { lastWatered: Timestamp.fromMillis(w.lastWateredMs) };
-      rt = { lastWatered: w.lastWatered };
+      // A real sensor owns currentVWC: log the manual watering, remember that we are waiting for the
+      // device's next report (POST /moisture clears the flag), and never invent a reading.
+      const nowMs = now();
+      const at = new Date(nowMs).toISOString();
+      event = { type: 'watered', source: 'manual', at, vwcBefore: before.currentVWC };
+      update = { lastWatered: Timestamp.fromMillis(nowMs), pendingDeviceReport: true };
+      rt = { lastWatered: at };
     } else {
+      const w = waterPlant({ nowMs: now(), maxVWC: data.maxVWC });
       event = { type: 'watered', source: 'simulated', at: w.lastWatered, vwcBefore: before.currentVWC, vwcAfter: w.currentVWC };
       update = { lastWatered: Timestamp.fromMillis(w.lastWateredMs), currentVWC: w.currentVWC };
       rt = { lastWatered: w.lastWatered, currentVWC: w.currentVWC };
@@ -318,9 +323,7 @@ function createApp(deps = {}) {
     await ref.update(update);
     await ref.collection('events').add(event);
     try { await fb().rtdb.ref(`plants/${uid}/${doc.id}`).update(rt); } catch (e) { log.error('RTDB update failed:', e.message); }
-    const after = { ...data, ...update };
-    const reading = readingFor(doc.id, after);
-    if (mode === 'hardware') reading.pendingDeviceReport = true;
+    const reading = readingFor(doc.id, { ...data, ...update });
     res.json({ ok: true, mode, event, reading, events: await recentEvents(ref) });
   }));
 
@@ -347,7 +350,7 @@ function createApp(deps = {}) {
     const { ref } = found;
     const { Timestamp } = fb();
     const nowMs = now();
-    const update = { currentVWC: vwc, deviceReportedAt: Timestamp.fromMillis(nowMs) };
+    const update = { currentVWC: vwc, deviceReportedAt: Timestamp.fromMillis(nowMs), pendingDeviceReport: false };
     if (watered) update.lastWatered = Timestamp.fromMillis(nowMs);
     await ref.update(update);
     if (watered) await ref.collection('events').add({ type: 'watered', source: 'device', at: new Date(nowMs).toISOString(), vwcAfter: vwc });
@@ -408,7 +411,7 @@ function createApp(deps = {}) {
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
     const { FieldValue } = fb();
-    await ref.update({ deviceConnected: false, deviceIP: FieldValue.delete(), devicePort: FieldValue.delete(), deviceSecret: FieldValue.delete(), connectedAt: FieldValue.delete(), deviceReportedAt: FieldValue.delete() });
+    await ref.update({ deviceConnected: false, deviceIP: FieldValue.delete(), devicePort: FieldValue.delete(), deviceSecret: FieldValue.delete(), connectedAt: FieldValue.delete(), deviceReportedAt: FieldValue.delete(), pendingDeviceReport: FieldValue.delete() });
     res.json({ success: true });
   }));
 

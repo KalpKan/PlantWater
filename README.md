@@ -2,7 +2,7 @@
 
 Identify a plant from a photo, get a care guide, and keep an eye on its soil moisture. Live at **https://plantit.kalpkan.com** (part of [kalpkan.com](https://kalpkan.com)).
 
-No hardware is needed to use it: every plant gets a **simulated moisture sensor** that dries out over about three days and a **Water now** button that logs a real watering event. If you build the ESP8266 watering device in `arduino/`, it takes over from the simulation for that plant.
+No hardware is needed to use it: every plant gets a **simulated moisture sensor** that dries out over about three days and a **Water now** button that logs a real watering event. The ESP8266 watering device in `arduino/` is optional and, as of now, does not report readings back to the app (see step 5 below), so the simulation stays in charge even with a device built.
 
 ## What it does
 
@@ -10,7 +10,7 @@ No hardware is needed to use it: every plant gets a **simulated moisture sensor*
 2. **Upload a photo** (JPEG/PNG/WebP, 10 KB to 4 MB). The API shrinks it, identifies the species with [Pl@ntNet](https://my.plantnet.org/) when a key is configured, and stores the photo in Supabase Storage.
 3. **Care guide**: five common houseplants are answered from a built-in library; anything else asks OpenAI when a key is configured, otherwise sensible general guidance.
 4. **My Plants**: each plant shows its soil moisture, a watering threshold, a Water now button and the last waterings. Readings are labelled **Simulated sensor** until a real ESP8266 posts a reading, then **Live sensor**.
-5. **Hardware (optional)**: "Connect ESP8266 (hardware required)" sends the plant's moisture targets to a device on your home network.
+5. **Hardware (optional, not finished)**: "Connect ESP8266 (hardware required)" sends the plant's moisture targets and a device secret to an ESP8266 on your home network (it only works when the API runs on your computer, not from the hosted site). **The firmware does not yet send readings back**: it stores what it was given but never calls the `/moisture` route, so a plant never switches to live readings today. Building the device now gets you a pump that waters on a schedule, not a live moisture graph; the reporting step is planned for the hardening pass (T5.b). Until then every plant, hardware or not, keeps the simulated sensor.
 
 ### Demo mode, and why it exists
 
