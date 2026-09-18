@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const axios = require('axios');
+const crypto = require('crypto');
 const { getFirebase, isConfigured: firebaseConfigured } = require('./firebase');
 const storage = require('./storage');
 const providers = require('./providers');
@@ -28,9 +29,33 @@ function toIso(v) {
   const ms = toMs(v);
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
+/** True for RFC1918 / link-local / loopback IPv4 only: the ESP8266 lives on a home network, never the public internet. */
+function isPrivateIPv4(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip || ''));
+  if (!m) return false;
+  const o = m.slice(1).map(Number);
+  if (o.some((n) => n > 255)) return false;
+  if (o[0] === 10) return true;
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true;
+  if (o[0] === 192 && o[1] === 168) return true;
+  return false;
+}
+function parsePort(v) {
+  const s = String(v ?? '').trim();
+  if (!/^\d{1,5}$/.test(s)) return null;
+  const n = Number(s);
+  return n >= 1 && n <= 65535 ? n : null;
+}
+function secretsMatch(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length > 0 && x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
 function serializePlant(id, data) {
+  const { deviceSecret, ...rest } = data; // the per-plant device secret only ever goes to the ESP8266
   return {
-    ...data,
+    ...rest,
     id,
     createdAt: toIso(data.createdAt),
     lastWatered: toIso(data.lastWatered),
@@ -63,6 +88,7 @@ function createApp(deps = {}) {
   const fb = () => deps.firebase || getFirebase(env);
   const photos = deps.storage || storage;
   const prov = deps.providers || providers;
+  const http = deps.http || axios;
   const guards = {};
   const guardFor = (service, limitVar) => {
     if (!guards[service]) guards[service] = new SpendGuard({ db: fb().db, service, limit: env[limitVar] });
@@ -276,22 +302,49 @@ function createApp(deps = {}) {
     const before = readingFor(doc.id, data);
     const w = waterPlant({ nowMs: now(), maxVWC: data.maxVWC });
     const { Timestamp } = fb();
-    const event = { type: 'watered', source: mode === 'hardware' ? 'manual' : 'simulated', at: w.lastWatered, vwcBefore: before.currentVWC, vwcAfter: w.currentVWC };
-    await ref.update({ lastWatered: Timestamp.fromMillis(w.lastWateredMs), currentVWC: w.currentVWC });
+    let event;
+    let update;
+    let rt;
+    if (mode === 'hardware') {
+      // A real sensor owns currentVWC: log the manual watering and wait for the device's next report.
+      event = { type: 'watered', source: 'manual', at: w.lastWatered, vwcBefore: before.currentVWC };
+      update = { lastWatered: Timestamp.fromMillis(w.lastWateredMs) };
+      rt = { lastWatered: w.lastWatered };
+    } else {
+      event = { type: 'watered', source: 'simulated', at: w.lastWatered, vwcBefore: before.currentVWC, vwcAfter: w.currentVWC };
+      update = { lastWatered: Timestamp.fromMillis(w.lastWateredMs), currentVWC: w.currentVWC };
+      rt = { lastWatered: w.lastWatered, currentVWC: w.currentVWC };
+    }
+    await ref.update(update);
     await ref.collection('events').add(event);
-    try { await fb().rtdb.ref(`plants/${uid}/${doc.id}`).update({ lastWatered: w.lastWatered, currentVWC: w.currentVWC }); } catch (e) { log.error('RTDB update failed:', e.message); }
-    const after = { ...data, lastWatered: Timestamp.fromMillis(w.lastWateredMs), currentVWC: w.currentVWC };
-    res.json({ ok: true, mode, event, reading: readingFor(doc.id, after), events: await recentEvents(ref) });
+    try { await fb().rtdb.ref(`plants/${uid}/${doc.id}`).update(rt); } catch (e) { log.error('RTDB update failed:', e.message); }
+    const after = { ...data, ...update };
+    const reading = readingFor(doc.id, after);
+    if (mode === 'hardware') reading.pendingDeviceReport = true;
+    res.json({ ok: true, mode, event, reading, events: await recentEvents(ref) });
   }));
 
   // ---- routes the ESP8266 firmware calls (hardware required) ------------------
+  // Both routes are unauthenticated (the firmware has no Google account), so they
+  // require the per-plant secret that connect-device issued and sent to the
+  // device, in an X-Device-Secret header. A uid + plantId pair on its own (visible
+  // in every public photo URL) must not be enough to flip a plant to hardware mode.
+  const DEVICE_DENIED = { error: 'Device not authorised for this plant', hardwareRequired: true, details: 'Connect the ESP8266 from the app first; it then sends the X-Device-Secret header it was given.' };
+  const loadDevicePlant = async (req, uid, plantId) => {
+    const ref = plantsRef(String(uid)).doc(String(plantId));
+    const doc = await ref.get();
+    const data = doc.exists ? doc.data() : null;
+    const ok = Boolean(data && data.deviceConnected === true && secretsMatch(req.get('x-device-secret'), data.deviceSecret));
+    return ok ? { ref, doc, data } : null;
+  };
+
   app.post('/api/plants/:plantId/moisture', asyncRoute(async (req, res) => {
     const { currentVWC, userId, watered = false } = req.body || {};
     const vwc = Number(currentVWC);
     if (!userId || !Number.isFinite(vwc) || vwc < 0 || vwc > 100) return res.status(400).json({ error: 'Body needs userId and currentVWC (0-100)' });
-    const ref = plantsRef(String(userId)).doc(req.params.plantId);
-    const doc = await ref.get();
-    if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
+    const found = await loadDevicePlant(req, userId, req.params.plantId);
+    if (!found) return res.status(403).json(DEVICE_DENIED);
+    const { ref } = found;
     const { Timestamp } = fb();
     const nowMs = now();
     const update = { currentVWC: vwc, deviceReportedAt: Timestamp.fromMillis(nowMs) };
@@ -307,36 +360,47 @@ function createApp(deps = {}) {
   }));
 
   app.get('/api/plants/:plantId/moisture/:userId', asyncRoute(async (req, res) => {
-    const doc = await plantsRef(req.params.userId).doc(req.params.plantId).get();
-    if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
-    const d = doc.data();
+    const found = await loadDevicePlant(req, req.params.userId, req.params.plantId);
+    if (!found) return res.status(403).json(DEVICE_DENIED);
+    const d = found.data;
     res.json({
       minVWC: d.minVWC, maxVWC: d.maxVWC, optimalVWC: d.optimalVWC, wateringThreshold: d.wateringThreshold,
       currentVWC: d.currentVWC || 0, lastWatered: toIso(d.lastWatered), species: d.species, commonName: d.commonName,
     });
   }));
 
+  const HARDWARE_UNREACHABLE = {
+    error: 'Could not reach the ESP8266',
+    hardwareRequired: true,
+    details: 'This needs a real device on the same network as the API. On the hosted app the API runs in Vercel\'s cloud, so run the API locally (npm run dev:api) to connect hardware.',
+  };
+
   app.post('/api/plants/:plantId/connect-device', authenticate, asyncRoute(async (req, res) => {
     const { deviceIP, devicePort = 8080 } = req.body || {};
-    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(String(deviceIP || ''))) return res.status(400).json({ error: 'deviceIP must be an IPv4 address' });
+    const ip = String(deviceIP || '').trim();
+    const port = parsePort(devicePort);
+    // Home-network addresses only: the function must never be pointed at a public host or the cloud metadata IP.
+    if (!isPrivateIPv4(ip)) return res.status(400).json({ error: 'deviceIP must be a private IPv4 address on your home network (10.x.x.x, 172.16-31.x.x or 192.168.x.x)' });
+    if (!port) return res.status(400).json({ error: 'devicePort must be a whole number from 1 to 65535' });
+    // The hosted API cannot see a home Wi-Fi, so do not even try from Vercel.
+    if (env.VERCEL) return res.status(502).json(HARDWARE_UNREACHABLE);
     const uid = req.user.uid;
     const ref = plantsRef(uid).doc(req.params.plantId);
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
     const d = doc.data();
-    const payload = { minVWC: d.minVWC || 15, maxVWC: d.maxVWC || 45, optimalVWC: d.optimalVWC || 30, userId: uid, plantId: doc.id };
+    // Fresh secret on every connect; the device must send it back as X-Device-Secret on the moisture routes.
+    const deviceSecret = crypto.randomBytes(16).toString('hex');
+    const payload = { minVWC: d.minVWC || 15, maxVWC: d.maxVWC || 45, optimalVWC: d.optimalVWC || 30, userId: uid, plantId: doc.id, deviceSecret };
     try {
-      await axios.post(`http://${deviceIP}:${devicePort}/configure`, payload, { timeout: 4000 });
+      await http.post(`http://${ip}:${port}/configure`, payload, { timeout: 4000 });
     } catch (error) {
-      return res.status(502).json({
-        error: 'Could not reach the ESP8266',
-        hardwareRequired: true,
-        details: 'This needs a real device on the same network as the API. On the hosted app the API runs in Vercel\'s cloud, so run the API locally (npm run dev:api) to connect hardware.',
-      });
+      return res.status(502).json(HARDWARE_UNREACHABLE);
     }
     const { Timestamp } = fb();
-    await ref.update({ deviceConnected: true, deviceIP, devicePort, connectedAt: Timestamp.fromMillis(now()) });
-    res.json({ success: true, deviceIP, moistureValues: payload });
+    await ref.update({ deviceConnected: true, deviceIP: ip, devicePort: port, deviceSecret, connectedAt: Timestamp.fromMillis(now()) });
+    const { deviceSecret: _omit, ...moistureValues } = payload;
+    res.json({ success: true, deviceIP: ip, devicePort: port, moistureValues });
   }));
 
   app.post('/api/plants/:plantId/disconnect-device', authenticate, asyncRoute(async (req, res) => {
@@ -344,7 +408,7 @@ function createApp(deps = {}) {
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Plant not found' });
     const { FieldValue } = fb();
-    await ref.update({ deviceConnected: false, deviceIP: FieldValue.delete(), devicePort: FieldValue.delete(), connectedAt: FieldValue.delete(), deviceReportedAt: FieldValue.delete() });
+    await ref.update({ deviceConnected: false, deviceIP: FieldValue.delete(), devicePort: FieldValue.delete(), deviceSecret: FieldValue.delete(), connectedAt: FieldValue.delete(), deviceReportedAt: FieldValue.delete() });
     res.json({ success: true });
   }));
 
@@ -375,4 +439,4 @@ function createApp(deps = {}) {
   return app;
 }
 
-module.exports = { createApp, serializePlant, toMs };
+module.exports = { createApp, serializePlant, toMs, isPrivateIPv4, parsePort };

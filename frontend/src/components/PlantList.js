@@ -8,6 +8,7 @@ import {
   CardMedia,
   Button,
   CircularProgress,
+  LinearProgress,
   Alert,
   Chip,
   Dialog,
@@ -55,7 +56,8 @@ async function authHeaders() {
 function PlantList() {
   const navigate = useNavigate();
   const [plants, setPlants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // first load only: shows the full-page spinner
+  const [refreshing, setRefreshing] = useState(false); // later refetches: keep the page and any open dialog mounted
   const [error, setError] = useState(null);
   const [selectedPlant, setSelectedPlant] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -70,7 +72,7 @@ function PlantList() {
 
   const fetchPlants = useCallback(async () => {
     try {
-      setLoading(true);
+      setRefreshing(true);
       setError(null);
       const response = await axios.get(apiUrl('/api/plants'), { headers: await authHeaders() });
       setPlants(response.data);
@@ -82,6 +84,7 @@ function PlantList() {
       else setError(err.response?.data?.error || 'Failed to load your plants. Please try again.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -126,6 +129,14 @@ function PlantList() {
     }
   };
 
+  // After "Water now" the API returns the fresh reading; patch it into state so the
+  // open dialog and its SensorPanel stay mounted (a refetch would flash the spinner).
+  const onWatered = (result) => {
+    const patch = { lastWatered: result?.reading?.lastWatered, sensorMode: result?.mode };
+    setPlants((list) => list.map((p) => (p.id === selectedPlant?.id ? { ...p, ...patch } : p)));
+    setSelectedPlant((p) => (p ? { ...p, ...patch } : p));
+  };
+
   const disconnectDevice = async (plantId) => {
     try {
       await axios.post(apiUrl(`/api/plants/${plantId}/disconnect-device`), {}, { headers: await authHeaders() });
@@ -137,7 +148,7 @@ function PlantList() {
     }
   };
 
-  if (loading) {
+  if (loading && plants.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
@@ -147,6 +158,7 @@ function PlantList() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+      {refreshing && <LinearProgress sx={{ mb: 2 }} aria-label="refreshing plants" />}
       <Typography
         variant="h4"
         gutterBottom
@@ -248,7 +260,7 @@ function PlantList() {
                     <Typography variant="body2" color="text.secondary">Family: {selectedPlant.family}</Typography>
                     <Typography variant="body2" color="text.secondary">Added: {formatDate(selectedPlant.createdAt)}</Typography>
                   </Box>
-                  <SensorPanel plantId={selectedPlant.id} onWatered={() => fetchPlants()} />
+                  <SensorPanel plantId={selectedPlant.id} onWatered={onWatered} />
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="h6" gutterBottom>Care Instructions</Typography>

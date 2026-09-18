@@ -70,6 +70,10 @@ const theme = createTheme({
     borderRadius: 18,
   },
   components: {
+    MuiCssBaseline: {
+      // Phone guard: nothing may make the page scroll sideways.
+      styleOverrides: { html: { overflowX: 'hidden' }, body: { overflowX: 'hidden' } },
+    },
     MuiButton: {
       styleOverrides: {
         root: {

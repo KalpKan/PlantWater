@@ -83,6 +83,20 @@ The ESP32 provides these endpoints:
 
 - `GET /status` - Device discovery endpoint
 - `POST /configure` - Receive plant configuration
+
+### Reporting readings to the app
+
+`POST /configure` now also carries `userId`, `plantId` and a per-plant `deviceSecret` (a fresh one on every "Connect ESP8266"). The firmware stores them. When you extend it to report soil readings, call the app's API with that secret in a header, otherwise the API answers `403`:
+
+```
+POST https://plantit.kalpkan.com/api/plants/<plantId>/moisture
+X-Device-Secret: <deviceSecret>
+Content-Type: application/json
+
+{"userId": "<userId>", "currentVWC": 31.5, "watered": false}
+```
+
+`GET /api/plants/<plantId>/moisture/<userId>` (the plant's targets) needs the same header. A plant that was never connected from the app, or a wrong secret, is refused; "Disconnect ESP8266" in the app clears the secret.
 - `GET /` - Status page
 
 ## Troubleshooting

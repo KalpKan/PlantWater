@@ -128,6 +128,9 @@ export default function SensorPanel({ plantId, onWatered }) {
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>The soil is moist enough for now.</Typography>
       )}
+      {reading.pendingDeviceReport && (
+        <Alert severity="info" sx={{ mb: 1.5 }}>Watering logged. The reading above is the sensor's last report and updates when the ESP8266 next reports.</Alert>
+      )}
       {error && <Alert severity="error" sx={{ mb: 1.5 }}>{error}</Alert>}
 
       <Button
@@ -146,7 +149,7 @@ export default function SensorPanel({ plantId, onWatered }) {
             <ListItem key={ev.id} disableGutters>
               <ListItemText
                 primary={`Watered (${ev.source})`}
-                secondary={`${new Date(ev.at).toLocaleString()}${ev.vwcBefore !== undefined ? ` · ${ev.vwcBefore}% → ${ev.vwcAfter}%` : ''}`}
+                secondary={`${new Date(ev.at).toLocaleString()}${ev.vwcBefore !== undefined && ev.vwcAfter !== undefined ? ` · ${ev.vwcBefore}% → ${ev.vwcAfter}%` : ev.vwcBefore !== undefined ? ` · was ${ev.vwcBefore}%` : ''}`}
               />
             </ListItem>
           ))}

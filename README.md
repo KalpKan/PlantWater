@@ -29,9 +29,9 @@ git clone https://github.com/KalpKan/PlantWater plantit && cd plantit
 npm install                      # API dependencies
 npm --prefix frontend install    # web app dependencies
 cp .env.example .env             # then fill in the Firebase and Supabase values
-npm run dev:api                  # API on http://localhost:3001  (check http://localhost:3001/api/health)
+npm run dev:api                  # API on http://localhost:3001  (check http://localhost:3001/api/health: 200 once .env has the Firebase values, 503 "Firebase Admin not configured" before)
 npm run dev:web                  # web app on http://localhost:3000 (proxies /api to :3001)
-npm test                         # 24 unit + route tests (spend guard, simulated sensor, demo plants, API)
+npm test                         # unit + route tests (spend guard, simulated sensor, demo plants, API, device secret)
 ```
 
 The web app's own settings (`REACT_APP_*`) go in `frontend/.env.local`; the API's settings go in the root `.env`. Neither file is committed.
@@ -75,10 +75,10 @@ All routes are under `/api`. Routes marked "signed in" need `Authorization: Bear
 | `POST /api/identify` (multipart field `image`) | signed in | identify, write the care guide, store the photo, save the plant |
 | `GET /api/plants`, `DELETE /api/plants/:id` | signed in | list / delete (also removes the photo) |
 | `GET /api/plants/:id/device` | signed in | `{ mode: "simulated"\|"hardware", reading, events }` |
-| `POST /api/plants/:id/water` | signed in | logs a watering event, resets the reading |
+| `POST /api/plants/:id/water` | signed in | logs a watering event; simulated mode resets the reading, hardware mode leaves the reading to the sensor's next report |
 | `GET /api/plant/:species/care` | signed in | care guide only |
-| `POST /api/plants/:id/moisture`, `GET /api/plants/:id/moisture/:userId` | the ESP8266 | device reports a reading / reads its targets (hardware) |
-| `POST /api/plants/:id/connect-device`, `.../disconnect-device`, `GET /api/discover-devices` | signed in | hardware required; discovery only when the API runs on the home network with `DEVICE_DISCOVERY_SUBNET` |
+| `POST /api/plants/:id/moisture`, `GET /api/plants/:id/moisture/:userId` | the ESP8266, header `X-Device-Secret` | device reports a reading / reads its targets (hardware). The secret is issued by connect-device and sent to the device; without it the API answers 403, so a uid + plant id alone cannot fake a sensor |
+| `POST /api/plants/:id/connect-device`, `.../disconnect-device`, `GET /api/discover-devices` | signed in | hardware required: only private home-network IPs (10.x, 172.16-31.x, 192.168.x) and ports 1-65535 are accepted, and the hosted API on Vercel always answers 502 `hardwareRequired` (run the API locally to connect a device); discovery only when the API runs on the home network with `DEVICE_DISCOVERY_SUBNET` |
 
 ## Repository layout
 
@@ -94,7 +94,7 @@ vercel.json           build, routes, analytics proxy
 
 ## Data
 
-Firestore: `users/{uid}/plants/{plantId}` (species, care guide, moisture targets, `lastWatered`, `imageUrl`, `deviceReportedAt`) with an `events` subcollection (waterings) and `spend/{service_day}` counters. Realtime Database mirrors each plant's moisture targets at `plants/{uid}/{plantId}` for the device. Photos: Supabase Storage `plantit-photos/{uid}/{plantId}.jpg`.
+Firestore: `users/{uid}/plants/{plantId}` (species, care guide, moisture targets, `lastWatered`, `imageUrl`, `deviceReportedAt`, and after connect-device a `deviceSecret` that only the ESP8266 receives) with an `events` subcollection (waterings) and `spend/{service_day}` counters. Realtime Database mirrors each plant's moisture targets at `plants/{uid}/{plantId}` for the device. Photos: Supabase Storage `plantit-photos/{uid}/{plantId}.jpg`.
 
 ## License
 

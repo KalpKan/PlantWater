@@ -31,6 +31,14 @@ struct PlantConfig {
   bool configured;
 } plantConfig = {0, 0, 0, false};
 
+// Sent by the app's connect-device step. To report readings back to the API
+// (POST /api/plants/<plantId>/moisture with {"userId":..., "currentVWC":...}),
+// the request must carry the header  X-Device-Secret: <deviceSecret>  or the
+// API answers 403. See arduino/README.md, "Reporting readings to the app".
+String deviceSecret = "";
+String plantUserId  = "";
+String plantId      = "";
+
 // —————— State ——————
 bool   isWatering     = false;
 bool   thresholdFlag  = false;
@@ -151,7 +159,7 @@ void setupWebServer() {
     Serial.println("Raw JSON: " + jsonData);
     Serial.println("JSON length: " + String(jsonData.length()));
     
-    DynamicJsonDocument doc(256);
+    DynamicJsonDocument doc(512);
     auto err = deserializeJson(doc, jsonData);
     if (err) {
       Serial.println("JSON parsing error: " + String(err.c_str()));
@@ -172,6 +180,9 @@ void setupWebServer() {
     plantConfig.maxVWC = doc["maxVWC"];
     plantConfig.optimalVWC = doc["optimalVWC"];
     plantConfig.configured = true;
+    if (doc.containsKey("deviceSecret")) deviceSecret = String((const char*)doc["deviceSecret"]);
+    if (doc.containsKey("userId"))       plantUserId  = String((const char*)doc["userId"]);
+    if (doc.containsKey("plantId"))      plantId      = String((const char*)doc["plantId"]);
     
     Serial.println("=== PARSED VALUES ===");
     Serial.println("minVWC: " + String(plantConfig.minVWC));
