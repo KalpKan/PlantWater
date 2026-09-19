@@ -1,0 +1,48 @@
+# Plant It CI: the same checks as `npm test` locally, plus the production build,
+# on every push and pull request. No secrets are needed: the API tests inject a
+# fake Firebase and the demo identification path, and the frontend build uses
+# the public Firebase web config. Nothing here deploys (Vercel deploys from main
+# on its own) and nothing here costs anything (GitHub Actions is free for public repos).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: API + frontend tests, production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+
+      - name: API tests (jest)
+        run: npm run test:api
+
+      - name: Frontend tests (jest via react-scripts)
+        run: npm run test:web
+
+      - name: Production build (CI=true, warnings are errors)
+        run: npm --prefix frontend run build
+        env:
+          CI: "true"

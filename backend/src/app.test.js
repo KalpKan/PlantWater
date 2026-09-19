@@ -59,9 +59,16 @@ describe('/api/health', () => {
     const app = createApp({ firebase: fakeFirebase(), env, log, now: () => t0 });
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ ok: true, service: 'plantit', firestore: 'ok', identification: 'demo', care: 'bundled', photos: 'unconfigured' });
+    expect(res.body).toMatchObject({ ok: true, service: 'plantit', firestore: 'ok', identification: 'demo', care: 'bundled', careWithVisitorKey: 'openai', photos: 'unconfigured' });
     expect(res.body.spend.plantnet).toMatchObject({ count: 0, limit: 50 });
+    expect(res.body.spend.openai).toBeUndefined(); // the server never spends on OpenAI
     expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  test('care stays "bundled" even if someone sets OPENAI_API_KEY on the server (the variable is not read)', async () => {
+    const app = createApp({ firebase: fakeFirebase(), env: { ...env, OPENAI_API_KEY: 'sk-server-should-be-ignored' }, log, now: () => t0 });
+    const res = await request(app).get('/api/health');
+    expect(res.body.care).toBe('bundled');
   });
 
   test('returns 503 with firestore: error when Firestore is unreachable', async () => {
@@ -200,6 +207,54 @@ describe('identify (demo path) and the simulated device', () => {
     const sim = await request(app).post('/api/plants/p2/water').set('Authorization', 'Bearer good');
     expect(sim.body.reading.pendingDeviceReport).toBeUndefined();
     expect((await firebase.db.collection('users').doc('u1').collection('plants').doc('p2').get()).data().pendingDeviceReport).toBeUndefined();
+  });
+
+  test('a visitor OpenAI key in X-OpenAI-Key reaches careGuide for that request only and is never logged or echoed', async () => {
+    const firebase = fakeFirebase();
+    const calls = [];
+    const logged = [];
+    const spyLog = { warn: (...a) => logged.push(a.join(' ')), error: (...a) => logged.push(a.join(' ')) };
+    const providers = {
+      identify: async () => ({ candidates: [{ score: 0.5, species: { scientificNameWithoutAuthor: 'Pilea peperomioides', commonNames: ['Chinese money plant'], family: { scientificNameWithoutAuthor: 'Urticaceae' } } }], demo: true, reason: 'no_plantnet_key' }),
+      careGuide: async ({ species, visitorKey }) => {
+        calls.push({ species, visitorKey });
+        if (visitorKey) return { care: { watering: 'w', light: 'l', temperature: 't', humidity: 'h', soil: 's', fertilizer: 'f', soilMoisture: { minVWC: 15, maxVWC: 45, optimalVWC: 30, wateringThreshold: 20 } }, source: 'openai', keySource: 'visitor' };
+        return { care: { watering: 'generic', light: 'l', temperature: 't', humidity: 'h', soil: 's', fertilizer: 'f', soilMoisture: { minVWC: 15, maxVWC: 45, optimalVWC: 30, wateringThreshold: 20 } }, source: 'generic', reason: 'no_openai_key' };
+      },
+    };
+    const app = createApp({ firebase, env, log: spyLog, now: () => t0, providers });
+    const png = Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n'), Buffer.alloc(20000, 9)]);
+    const key = 'sk-visitor-test-key-0123456789abcdef';
+
+    const withKey = await request(app).post('/api/identify').set('Authorization', 'Bearer good').set('X-OpenAI-Key', key).attach('image', png, { filename: 'leaf.png', contentType: 'image/png' });
+    expect(withKey.status).toBe(200);
+    expect(withKey.body).toMatchObject({ careSource: 'openai', careKeySource: 'visitor' });
+    expect(calls[0]).toEqual({ species: 'Pilea peperomioides', visitorKey: key });
+    expect(JSON.stringify(withKey.body)).not.toContain(key);
+
+    const without = await request(app).post('/api/identify').set('Authorization', 'Bearer good').attach('image', png, { filename: 'leaf.png', contentType: 'image/png' });
+    expect(without.body).toMatchObject({ careSource: 'generic', careReason: 'no_openai_key', careKeySource: null });
+    expect(calls[1].visitorKey).toBe('');
+
+    // Whitespace-only and non-ASCII headers are ignored, never forwarded.
+    await request(app).post('/api/identify').set('Authorization', 'Bearer good').set('X-OpenAI-Key', '   ').attach('image', png, { filename: 'leaf.png', contentType: 'image/png' });
+    expect(calls[2].visitorKey).toBe('');
+
+    const care = await request(app).get('/api/plant/Pilea%20peperomioides/care').set('Authorization', 'Bearer good').set('X-OpenAI-Key', key);
+    expect(care.body).toMatchObject({ source: 'openai', keySource: 'visitor' });
+    expect(calls[3].visitorKey).toBe(key);
+
+    // Nothing persisted: the plant document carries no key, and nothing was logged.
+    const saved = [...firebase.db.store.values()].map((d) => JSON.stringify(d)).join('');
+    expect(saved).not.toContain(key);
+    expect(logged.join(' ')).not.toContain(key);
+  });
+
+  test('the browser is allowed to send X-OpenAI-Key cross-origin (CORS preflight)', async () => {
+    const app = createApp({ firebase: fakeFirebase(), env, log, now: () => t0 });
+    const res = await request(app).options('/api/identify').set('Origin', 'http://localhost:3000').set('Access-Control-Request-Method', 'POST').set('Access-Control-Request-Headers', 'authorization,x-openai-key');
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-headers'].toLowerCase()).toContain('x-openai-key');
   });
 
   test('rejects uploads that are not images and unknown API routes', async () => {

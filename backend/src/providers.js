@@ -1,10 +1,17 @@
 /**
- * The two paid providers, each behind a SpendGuard (see spendGuard.js) and
- * each with a canned fallback so the app never breaks for a visitor:
- *   - Pl@ntNet identifies the species from the photo (PLANTNET_API_KEY).
- *   - OpenAI writes the care guide for that species (OPENAI_API_KEY).
- * With no key, an exhausted daily counter, or a provider error, the bundled
- * demo plants answer instead and the response is flagged `demo: true`.
+ * The two external providers, each with a canned fallback so the app never
+ * breaks for a visitor:
+ *   - Pl@ntNet identifies the species from the photo (PLANTNET_API_KEY on the
+ *     server, behind a SpendGuard, see spendGuard.js). With no key, an
+ *     exhausted daily counter, or a provider error, the bundled demo plants
+ *     answer instead and the response is flagged `demo: true`.
+ *   - OpenAI writes a species-specific care guide ONLY with a key the visitor
+ *     typed into the app ("Use your own OpenAI key"). That key lives in the
+ *     visitor's browser, arrives once per request in the X-OpenAI-Key header,
+ *     and is never stored, logged or configured on the server: there is no
+ *     OPENAI_API_KEY environment variable, by decision (2026-09-18, no paid
+ *     keys in public demos). Without a visitor key the care guide comes from
+ *     the bundled library (five common houseplants) or generic guidance.
  */
 const axios = require('axios');
 const FormData = require('form-data');
@@ -118,23 +125,54 @@ function genericCare(species) {
   return base;
 }
 
-/**
- * Care guide for a species. Bundled species are answered from the canned
- * list without spending; otherwise OpenAI behind its guard; otherwise generic.
- */
-async function careGuide({ species, guard, apiKey = process.env.OPENAI_API_KEY, log = console }) {
-  const canned = findCannedCare(species);
-  if (canned) return { care: canned, source: 'bundled' };
-  if (!apiKey) return { care: genericCare(species), source: 'generic', reason: 'no_openai_key' };
-  const slot = await guard.tryAcquire();
-  if (!slot.allowed) return { care: genericCare(species), source: 'generic', reason: 'openai_daily_limit', spend: slot };
-  try {
-    const care = await careWithOpenAI({ species, apiKey });
-    return { care, source: 'openai', spend: slot };
-  } catch (error) {
-    log.error('OpenAI failed, using generic care:', error.message);
-    return { care: genericCare(species), source: 'generic', reason: 'openai_error', spend: slot };
-  }
+/** Scrub a secret (and anything that looks like an OpenAI key) out of text before it is logged or returned. */
+function redactSecret(text, secret) {
+  let out = String(text || '');
+  if (secret) out = out.split(secret).join('[redacted]');
+  return out.replace(/sk-[A-Za-z0-9_-]{6,}/g, 'sk-[redacted]');
 }
 
-module.exports = { identify, careGuide, identifyWithPlantNet, careWithOpenAI, genericCare, DEMO_PLANTS };
+/** Short, key-free classification of an OpenAI failure for the visitor ("why did my key not work?"). */
+function classifyOpenAIError(error) {
+  const status = error && (error.status || (error.response && error.response.status));
+  if (status === 401) return 'invalid_key';
+  if (status === 429) return 'rate_limited_or_no_credit';
+  if (status === 403) return 'forbidden';
+  if (/timeout|timed out|ETIMEDOUT|ECONN/i.test(String(error && error.message))) return 'timeout';
+  return 'error';
+}
+
+/**
+ * Care guide for a species.
+ *   - visitorKey set (the X-OpenAI-Key header): OpenAI writes the guide on the
+ *     visitor's own account, so there is no server-side spend guard. On any
+ *     failure the bundled/generic guide answers and `reason` says why, with
+ *     `openaiError` classifying the failure (never the key or the raw message).
+ *   - no visitorKey: bundled species answer from the canned list, anything
+ *     else gets generic guidance. The server has no OpenAI key of its own.
+ * `openai` is injectable for tests (defaults to the real careWithOpenAI).
+ */
+async function careGuide({ species, visitorKey, log = console, openai = careWithOpenAI }) {
+  const canned = findCannedCare(species);
+  const key = typeof visitorKey === 'string' ? visitorKey.trim() : '';
+  if (key) {
+    try {
+      const care = await openai({ species, apiKey: key });
+      return { care, source: 'openai', keySource: 'visitor' };
+    } catch (error) {
+      const openaiError = classifyOpenAIError(error);
+      log.error('OpenAI (visitor key) failed, using the built-in guide:', openaiError, redactSecret(error && error.message, key));
+      return {
+        care: canned || genericCare(species),
+        source: canned ? 'bundled' : 'generic',
+        reason: 'openai_error',
+        openaiError,
+        keySource: 'visitor',
+      };
+    }
+  }
+  if (canned) return { care: canned, source: 'bundled' };
+  return { care: genericCare(species), source: 'generic', reason: 'no_openai_key' };
+}
+
+module.exports = { identify, careGuide, identifyWithPlantNet, careWithOpenAI, genericCare, redactSecret, classifyOpenAIError, DEMO_PLANTS };

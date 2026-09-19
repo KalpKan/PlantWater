@@ -18,6 +18,7 @@ import {
 import axios from 'axios';
 import { auth } from '../firebase';
 import { apiUrl } from '../config';
+import { openAiKeyHeaders } from '../openaiKey';
 
 const DEMO_REASONS = {
   no_plantnet_key: 'No Pl@ntNet key is configured on this deployment, so the species comes from a bundled list of common houseplants.',
@@ -27,8 +28,16 @@ const DEMO_REASONS = {
 
 const CARE_SOURCES = {
   bundled: 'Care guide from the built-in plant library.',
-  openai: 'Care guide written by OpenAI for this species.',
-  generic: 'General houseplant care (no species-specific guide was available).',
+  openai: 'Care guide written by OpenAI for this species, using the key saved in your browser.',
+  generic: 'General houseplant care (no species-specific guide is bundled; add your own OpenAI key under "Add Plant" for one).',
+};
+
+const OPENAI_ERRORS = {
+  invalid_key: 'OpenAI rejected the key saved in your browser (401). Check it under "Add Plant".',
+  rate_limited_or_no_credit: 'OpenAI answered 429 for your key (rate limit or no credit on that account).',
+  forbidden: 'OpenAI refused the request for your key (403).',
+  timeout: 'OpenAI did not answer in time.',
+  error: 'OpenAI did not answer.',
 };
 
 function PlantDetails() {
@@ -38,7 +47,7 @@ function PlantDetails() {
   const [error, setError] = useState(null);
   const [plantDetails, setPlantDetails] = useState(null);
 
-  const { candidates, imageUrl, careInstructions, careSource, savedPlant, demo, reason } = location.state || {};
+  const { candidates, imageUrl, careInstructions, careSource, careReason, openaiError, savedPlant, demo, reason } = location.state || {};
 
   useEffect(() => {
     if (!candidates || candidates.length === 0) {
@@ -55,7 +64,7 @@ function PlantDetails() {
       try {
         const token = await auth.currentUser.getIdToken();
         const species = encodeURIComponent(candidates[0].species.scientificNameWithoutAuthor);
-        const response = await axios.get(apiUrl(`/api/plant/${species}/care`), { headers: { Authorization: `Bearer ${token}` } });
+        const response = await axios.get(apiUrl(`/api/plant/${species}/care`), { headers: { Authorization: `Bearer ${token}`, ...openAiKeyHeaders() } });
         setPlantDetails(response.data);
       } catch (err) {
         setError('Failed to fetch plant details. Please try again.');
@@ -94,6 +103,11 @@ function PlantDetails() {
       {demo && (
         <Alert severity="info" sx={{ mb: 2 }} data-testid="demo-notice">
           <strong>Demo result.</strong> {DEMO_REASONS[reason] || 'The species comes from a bundled list of common houseplants.'}
+        </Alert>
+      )}
+      {(careReason === 'openai_error' || plantDetails?.reason === 'openai_error') && (
+        <Alert severity="warning" sx={{ mb: 2 }} data-testid="openai-error-notice">
+          {OPENAI_ERRORS[openaiError || plantDetails?.openaiError] || OPENAI_ERRORS.error} The built-in care guide is shown instead.
         </Alert>
       )}
       {error && (

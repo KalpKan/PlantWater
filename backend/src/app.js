@@ -18,6 +18,24 @@ const { simulateReading, waterPlant, deviceHasReported } = require('./simulatedD
 
 const MAX_UPLOAD_BYTES = 4.5 * 1024 * 1024; // Vercel's request body limit
 const MIN_UPLOAD_BYTES = 10 * 1024;
+/**
+ * "Use your own OpenAI key": the visitor's key travels in this header, once per
+ * request, straight from their browser's localStorage. It is read here, handed
+ * to providers.careGuide for that one call, and never stored, logged or set as
+ * a server environment variable. An absent or empty header means the bundled
+ * care library answers.
+ */
+const VISITOR_OPENAI_HEADER = 'x-openai-key';
+const MAX_VISITOR_KEY_LENGTH = 512;
+
+function visitorOpenAIKey(req) {
+  const raw = req.get(VISITOR_OPENAI_HEADER);
+  if (typeof raw !== 'string') return '';
+  const key = raw.trim();
+  // Keys are printable ASCII without spaces; anything else is ignored rather than forwarded.
+  if (!key || key.length > MAX_VISITOR_KEY_LENGTH || !/^[\x21-\x7e]+$/.test(key)) return '';
+  return key;
+}
 
 function toMs(v) {
   if (v === null || v === undefined) return NaN;
@@ -127,7 +145,7 @@ function createApp(deps = {}) {
   app.use(cors({
     origin: (origin, cb) => cb(null, !origin || allowed.has(origin)),
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-OpenAI-Key'],
   }));
   app.use(express.json({ limit: '1mb' }));
 
@@ -156,7 +174,9 @@ function createApp(deps = {}) {
       firestore: 'error',
       photos: photos.isConfigured(env) ? 'supabase' : 'unconfigured',
       identification: env.PLANTNET_API_KEY ? 'plantnet' : 'demo',
-      care: env.OPENAI_API_KEY ? 'openai' : 'bundled',
+      // The server never has an OpenAI key; a visitor may bring their own per request (X-OpenAI-Key).
+      care: 'bundled',
+      careWithVisitorKey: 'openai',
       image: imageProcessor(),
       time: new Date(now()).toISOString(),
     };
@@ -172,7 +192,6 @@ function createApp(deps = {}) {
         body.firestore = 'ok';
         body.spend = {
           plantnet: await guardFor('plantnet', 'PLANTNET_DAILY_LIMIT').status(),
-          openai: await guardFor('openai', 'OPENAI_DAILY_LIMIT').status(),
         };
       } catch (error) {
         body.firestoreError = error.message;
@@ -196,7 +215,7 @@ function createApp(deps = {}) {
     const ident = await prov.identify({ buffer: jpeg, guard: guardFor('plantnet', 'PLANTNET_DAILY_LIMIT'), log });
     const top = ident.candidates[0];
     const species = top.species.scientificNameWithoutAuthor;
-    const guide = await prov.careGuide({ species, guard: guardFor('openai', 'OPENAI_DAILY_LIMIT'), log });
+    const guide = await prov.careGuide({ species, visitorKey: visitorOpenAIKey(req), log });
     const care = guide.care;
 
     const ref = plantsRef(uid).doc();
@@ -223,6 +242,7 @@ function createApp(deps = {}) {
       demo: ident.demo,
       identificationSource: ident.demo ? 'demo' : 'plantnet',
       careSource: guide.source,
+      careKeySource: guide.keySource || null,
       imageUrl,
       photoPath,
       careInstructions: care,
@@ -251,13 +271,16 @@ function createApp(deps = {}) {
       reason: ident.reason || null,
       careInstructions: care,
       careSource: guide.source,
+      careKeySource: guide.keySource || null,
+      careReason: guide.reason || null,
+      openaiError: guide.openaiError || null,
       savedPlant: serializePlant(ref.id, plant),
     });
   }));
 
   app.get('/api/plant/:species/care', authenticate, asyncRoute(async (req, res) => {
-    const guide = await prov.careGuide({ species: req.params.species, guard: guardFor('openai', 'OPENAI_DAILY_LIMIT'), log });
-    res.json({ ...guide.care, source: guide.source });
+    const guide = await prov.careGuide({ species: req.params.species, visitorKey: visitorOpenAIKey(req), log });
+    res.json({ ...guide.care, source: guide.source, keySource: guide.keySource || null, reason: guide.reason || null, openaiError: guide.openaiError || null });
   }));
 
   // ---- plants ---------------------------------------------------------------
@@ -463,4 +486,4 @@ function createApp(deps = {}) {
   return app;
 }
 
-module.exports = { createApp, serializePlant, isLegacyFirebasePhoto, toMs, isPrivateIPv4, parsePort };
+module.exports = { createApp, serializePlant, isLegacyFirebasePhoto, toMs, isPrivateIPv4, parsePort, visitorOpenAIKey, VISITOR_OPENAI_HEADER };

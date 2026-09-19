@@ -14,6 +14,8 @@ import axios from 'axios';
 import { auth } from '../firebase';
 import { apiUrl } from '../config';
 import { track } from '../analytics';
+import OpenAiKeyField from './OpenAiKeyField';
+import { openAiKeyHeaders } from '../openaiKey';
 
 const MIN_IMAGE_SIZE = 10 * 1024; // 10 KB
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024; // 4 MB (the API accepts up to 4.5 MB)
@@ -57,7 +59,8 @@ function PlantUpload() {
       formData.append('image', file);
       const token = await auth.currentUser.getIdToken();
       const response = await axios.post(apiUrl('/api/identify'), formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        // The optional visitor OpenAI key rides along as a header (see openaiKey.js); absent when none is saved.
+        headers: { Authorization: `Bearer ${token}`, ...openAiKeyHeaders() },
       });
       const data = response.data;
       if (data.candidates && data.candidates.length > 0) {
@@ -68,6 +71,9 @@ function PlantUpload() {
             imageUrl: data.savedPlant?.imageUrl || preview,
             careInstructions: data.careInstructions,
             careSource: data.careSource,
+            careKeySource: data.careKeySource,
+            careReason: data.careReason,
+            openaiError: data.openaiError,
             demo: data.demo,
             reason: data.reason,
             savedPlant: data.savedPlant,
@@ -128,6 +134,8 @@ function PlantUpload() {
           </Box>
         </CardContent>
       </Card>
+
+      <OpenAiKeyField />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
