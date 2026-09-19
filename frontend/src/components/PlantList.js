@@ -219,6 +219,7 @@ function PlantList() {
                           variant="outlined"
                         />
                         {plant.demo && <Chip size="small" label="Demo result" color="info" variant="outlined" />}
+                        {plant.lowConfidence && <Chip size="small" label="Low confidence" color="warning" variant="outlined" />}
                         {plant.deviceConnected && <Chip size="small" icon={<CheckCircleIcon />} label="ESP8266 configured" color="primary" />}
                       </Box>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>

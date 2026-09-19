@@ -27,10 +27,16 @@ function PlantUpload() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback((acceptedFiles, fileRejections = []) => {
     setError(null);
     const picked = acceptedFiles[0];
-    if (!picked) return;
+    if (!picked) {
+      // react-dropzone drops non-images silently unless we read its rejections (D7).
+      const code = fileRejections[0]?.errors?.[0]?.code;
+      if (code === 'too-many-files') setError('One photo at a time, please.');
+      else if (fileRejections.length > 0) setError('Only JPEG, PNG or WebP images are accepted.');
+      return;
+    }
     if (picked.size < MIN_IMAGE_SIZE) {
       setError(`That image is too small (under ${MIN_IMAGE_SIZE / 1024} KB). Please use a clearer photo.`);
       return;
@@ -64,10 +70,11 @@ function PlantUpload() {
       });
       const data = response.data;
       if (data.candidates && data.candidates.length > 0) {
-        track('plant_identified', { demo: Boolean(data.demo), care_source: data.careSource || 'unknown' });
+        track('plant_identified', { demo: Boolean(data.demo), care_source: data.careSource || 'unknown', low_confidence: data.lowConfidence === true });
         navigate('/plant-details', {
           state: {
             candidates: data.candidates,
+            lowConfidence: data.lowConfidence === true,
             imageUrl: data.savedPlant?.imageUrl || preview,
             careInstructions: data.careInstructions,
             careSource: data.careSource,
@@ -85,6 +92,7 @@ function PlantUpload() {
     } catch (err) {
       const message = err.response?.data?.details || err.response?.data?.error || 'Failed to identify plant. Please try again.';
       setError(message);
+      if (err.response?.data?.notAPlant) track('plant_not_recognised', { bytes: file.size });
     } finally {
       setLoading(false);
     }
@@ -146,7 +154,7 @@ function PlantUpload() {
       <Button variant="contained" onClick={handleIdentify} disabled={!file || loading} fullWidth data-testid="identify">
         {loading ? (
           <>
-            <CircularProgress size={24} sx={{ mr: 1, color: '#fff' }} />
+            <CircularProgress size={24} sx={{ mr: 1, color: 'inherit' }} />
             Identifying plant…
           </>
         ) : (

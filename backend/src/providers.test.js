@@ -1,4 +1,4 @@
-const { careGuide, redactSecret, classifyOpenAIError } = require('./providers');
+const { careGuide, identify, redactSecret, classifyOpenAIError } = require("./providers");
 
 const log = { warn() {}, error() {} };
 const fakeCare = {
@@ -48,5 +48,77 @@ describe('careGuide (bring-your-own OpenAI key)', () => {
     expect(classifyOpenAIError({ status: 429 })).toBe('rate_limited_or_no_credit');
     expect(classifyOpenAIError({ message: 'Request timed out' })).toBe('timeout');
     expect(classifyOpenAIError(new Error('boom'))).toBe('error');
+  });
+});
+
+describe('identify: Pl@ntNet "Species not found" is a not-a-plant answer, not an outage', () => {
+  const guard = { tryAcquire: async () => ({ allowed: true, count: 1, limit: 50, day: '2026-09-19' }) };
+  const httpError = (status, data) => Object.assign(new Error(`Request failed with status code ${status}`), { response: { status, data } });
+
+  test('a 404 from Pl@ntNet returns notAPlant with no candidates and no demo fallback', async () => {
+    const client = { post: async () => { throw httpError(404, { statusCode: 404, error: 'Not Found', message: 'Species not found' }); } };
+    const res = await identify({ buffer: Buffer.alloc(20000, 3), guard, apiKey: 'k', log, client });
+    expect(res).toMatchObject({ candidates: [], notAPlant: true, demo: false, reason: 'plantnet_species_not_found' });
+  });
+
+  test('an empty results array is also notAPlant', async () => {
+    const client = { post: async () => ({ data: { results: [] } }) };
+    const res = await identify({ buffer: Buffer.alloc(20000, 3), guard, apiKey: 'k', log, client });
+    expect(res).toMatchObject({ candidates: [], notAPlant: true, demo: false });
+  });
+
+  test('a 5xx / network failure still falls back to the demo list (that is an outage)', async () => {
+    const client = { post: async () => { throw httpError(503, { message: 'Service Unavailable' }); } };
+    const res = await identify({ buffer: Buffer.alloc(20000, 3), guard, apiKey: 'k', log, client });
+    expect(res).toMatchObject({ demo: true, reason: 'plantnet_error' });
+    expect(res.candidates).toHaveLength(1);
+  });
+
+  test('a real answer flags lowConfidence when the top score is under 0.3 and keeps up to five candidates', async () => {
+    const species = (name, score) => ({ score, species: { scientificNameWithoutAuthor: name, genus: { scientificNameWithoutAuthor: name.split(' ')[0] }, family: { scientificNameWithoutAuthor: 'Araceae' }, commonNames: [] } });
+    const client = { post: async () => ({ data: { results: [species('Livistona chinensis', 0.104), species('Monstera deliciosa', 0.09), species('Philodendron pastazanum', 0.05), species('A b', 0.01), species('C d', 0.01), species('E f', 0.005)] } }) };
+    const res = await identify({ buffer: Buffer.alloc(20000, 3), guard, apiKey: 'k', log, client });
+    expect(res.demo).toBe(false);
+    expect(res.lowConfidence).toBe(true);
+    expect(res.candidates).toHaveLength(5);
+    const sure = { post: async () => ({ data: { results: [species('Ficus lyrata', 0.86)] } }) };
+    expect((await identify({ buffer: Buffer.alloc(20000, 3), guard, apiKey: 'k', log, client: sure })).lowConfidence).toBe(false);
+  });
+});
+
+describe('visitor OpenAI key never reaches the log, even inside OpenAI\'s own masked error message', () => {
+  test('OpenAI\'s 401 text carries the first 8 and last 4 key characters; neither is logged', async () => {
+    const key = 'sk-invalidkeyabcdefghijklmnop';
+    const logged = [];
+    const spy = { warn() {}, error: (...a) => logged.push(a.join(' ')) };
+    // Exactly what the OpenAI SDK puts in error.message for a bad key (seen in Vercel logs, TEST round 1, D5).
+    const err = Object.assign(new Error('401 Incorrect API key provided: sk-inval*****************mnop. You can find your API key at https://platform.openai.com/account/api-keys.'), { status: 401 });
+    const openai = jest.fn(async () => { throw err; });
+    const res = await careGuide({ species: 'Ficus lyrata', visitorKey: key, log: spy, openai });
+    expect(res.openaiError).toBe('invalid_key');
+    expect(logged.length).toBe(1);
+    expect(logged[0]).not.toContain('sk-inval');
+    expect(logged[0]).not.toContain('mnop');
+    expect(logged[0]).not.toContain('Incorrect API key');
+    expect(logged[0]).toContain('invalid_key');
+    expect(logged[0]).toContain('401');
+  });
+
+  test('redactSecret scrubs starred and short key fragments too', () => {
+    expect(redactSecret('Incorrect API key provided: sk-inval*****************mnop. You can', 'sk-invalidkeyabcdefghijklmnop')).not.toMatch(/sk-inval|mnop/);
+    expect(redactSecret('sk-proj-abc', '')).toBe('sk-[redacted]');
+    expect(redactSecret('a desk-lamp is fine', '')).toBe('a desk-lamp is fine');
+  });
+});
+
+describe('genericCare drought rule (D2)', () => {
+  test('Zamioculcas and Dracaena trifasciata fall in the dry-out group even without a bundled entry', () => {
+    const { genericCare } = require('./providers');
+    for (const name of ['Zamioculcas zamiifolia', 'Dracaena trifasciata', 'Sansevieria cylindrica', 'Kalanchoe blossfeldiana']) {
+      expect(genericCare(name).soilMoisture.wateringThreshold).toBeLessThanOrEqual(12);
+      expect(genericCare(name).watering).toMatch(/completely dry/i);
+    }
+    expect(genericCare('Dracaena marginata').soilMoisture.wateringThreshold).toBe(20);
+    expect(genericCare('Spathiphyllum blandum').soilMoisture.wateringThreshold).toBe(20);
   });
 });

@@ -4,7 +4,12 @@
  * and score it against ground-truth.json and its bars.
  *
  *   set -a; source ~/.config/portfolio-ops/secrets.env; set +a   # FIREBASE_* for the throwaway sign-in
- *   node scripts/run-corpus.js --base https://plantit.kalpkan.com [--uid corpus-test] [--keep] [--openai-key sk-...]
+ *   node scripts/run-corpus.js --base https://plantit.kalpkan.com [--uid corpus-test] [--keep] [--openai-key sk-...] [--only mug,dracaena,zamioculcas]
+ *
+ * --only <comma list> runs just the fixtures whose file name contains one of the
+ * words (plus the free negatives), for a cheap spot check when the day's
+ * Pl@ntNet budget is short; the per-bar "of" counts shrink accordingly and the
+ * summary says the run was partial.
  *
  * How it signs in: Firebase Admin (service account from FIREBASE_PROJECT_ID /
  * FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY) mints a custom token for a
@@ -28,6 +33,7 @@ const BASE = (opt('--base', 'https://plantit.kalpkan.com') || '').replace(/\/$/,
 const UID = opt('--uid', 'corpus-test');
 const KEEP = args.includes('--keep');
 const OPENAI_KEY = opt('--openai-key', '');
+const ONLY = String(opt('--only', '') || '').split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
 const WEB_API_KEY = process.env.REACT_APP_FIREBASE_API_KEY || 'AIzaSyCL08dLFchZWMR5YbxNarVgmQoPWZIMQUE'; // public, see frontend/src/firebase.js
 const DIR = path.join(__dirname, '..', 'tests', 'fixtures', 'plants');
 const truth = JSON.parse(fs.readFileSync(path.join(DIR, 'ground-truth.json'), 'utf8'));
@@ -66,7 +72,11 @@ async function main() {
 
   const rows = [];
   const created = [];
-  for (const item of truth.items) {
+  const items = ONLY.length
+    ? truth.items.filter((it) => it.difficulty === 'negative' || ONLY.some((w) => it.file.toLowerCase().includes(w)))
+    : truth.items;
+  if (ONLY.length) console.log(`PARTIAL RUN (--only ${ONLY.join(',')}): ${items.length} of ${truth.items.length} fixtures; the bars below are scaled to this subset.`);
+  for (const item of items) {
     const file = path.join(DIR, item.file);
     const form = new FormData();
     form.append('image', fs.readFileSync(file), { filename: item.file, contentType: item.file.endsWith('.txt') ? 'text/plain' : 'image/jpeg' });
@@ -92,9 +102,22 @@ async function main() {
       // Expected: a 4xx that names the problem and no plant saved. A 200 with demo: true is the wrong answer (a mug becomes a Ficus).
       negativeOk = res.status >= 400 && res.status < 500 && !body.savedPlant;
     }
-    rows.push({ file: item.file, status: res.status, ms, top1, score: score === null ? null : Math.round(score * 100) / 100, demo: body.demo === true, careSource: body.careSource || null, genusOk, speciesOk, top3Ok, negativeOk, expected: negative ? 'not a plant / refused' : item.species.join(' | '), error: body.error || null });
-    const flag = negative ? (negativeOk ? 'ok' : 'WRONG') : `${genusOk ? 'genus' : '-----'} ${speciesOk ? 'species' : '-------'} ${top3Ok ? 'top3' : '----'}`;
-    console.log(`${item.file.padEnd(28)} ${String(res.status).padStart(3)} ${String(ms).padStart(5)} ms  ${String(top1 || body.error || '').padEnd(28)} ${score === null ? '    ' : String(Math.round(score * 100)).padStart(3) + '%'} ${body.demo ? 'DEMO ' : '     '} ${flag}`);
+    // Care bar (D2): the guide that came back must sit inside the species' careBar from ground-truth.json.
+    const care = body.careInstructions || null;
+    const threshold = care && care.soilMoisture ? care.soilMoisture.wateringThreshold : null;
+    let careOk = null;
+    if (!negative && item.careBar && res.status === 200) {
+      const b = item.careBar;
+      careOk = care !== null
+        && (b.wateringThresholdMax === undefined || threshold <= b.wateringThresholdMax)
+        && (b.wateringThresholdMin === undefined || threshold >= b.wateringThresholdMin)
+        && (!b.wateringMustMatch || new RegExp(b.wateringMustMatch, 'i').test(String(care.watering)));
+    }
+    // Low-confidence bar (D3): the API flags a top-1 score under 0.3 so the page can warn and list the runner-ups.
+    const lowOk = !negative && res.status === 200 && score !== null && body.demo !== true ? body.lowConfidence === (score < 0.3) : null;
+    rows.push({ file: item.file, status: res.status, ms, top1, score: score === null ? null : Math.round(score * 100) / 100, demo: body.demo === true, careSource: body.careSource || null, wateringThreshold: threshold, lowConfidence: body.lowConfidence === true, nCandidates: cands.length, genusOk, speciesOk, top3Ok, negativeOk, careOk, lowOk, expected: negative ? 'not a plant / refused' : item.species.join(' | '), error: body.error || null });
+    const flag = negative ? (negativeOk ? 'ok' : 'WRONG') : `${genusOk ? 'genus' : '-----'} ${speciesOk ? 'species' : '-------'} ${top3Ok ? 'top3' : '----'} ${careOk === null ? '    ' : careOk ? 'care' : 'CARE!'} ${lowOk === false ? 'LOWCONF!' : body.lowConfidence ? 'lowconf' : ''}`;
+    console.log(`${item.file.padEnd(28)} ${String(res.status).padStart(3)} ${String(ms).padStart(5)} ms  ${String(top1 || body.error || '').padEnd(28)} ${score === null ? '    ' : String(Math.round(score * 100)).padStart(3) + '%'} ${body.demo ? 'DEMO ' : '     '} ${threshold === null ? '   ' : ('t' + threshold).padStart(3)} ${flag}`);
   }
 
   const plants = rows.filter((r) => r.negativeOk === null);
@@ -102,16 +125,22 @@ async function main() {
   const count = (k) => plants.filter((r) => r[k]).length;
   const slow = rows.filter((r) => r.ms >= 10000).length;
   const negatives = rows.filter((r) => r.negativeOk !== null);
+  const cared = rows.filter((r) => r.careOk !== null);
+  const lows = rows.filter((r) => r.lowOk !== null);
+  // Scale the count bars when --only shrank the set (13/15 -> the same fraction of what ran).
+  const scaled = (k, of) => Math.ceil((k / 15) * of);
   const results = [
-    ['genus top-1 >= 13/15', count('genusOk'), n, count('genusOk') >= 13],
-    ['species top-1 >= 9/15', count('speciesOk'), n, count('speciesOk') >= 9],
-    ['species in top-3 >= 13/15', count('top3Ok'), n, count('top3Ok') >= 13],
+    [`genus top-1 >= ${scaled(13, n)}/${n}`, count('genusOk'), n, count('genusOk') >= scaled(13, n)],
+    [`species top-1 >= ${scaled(9, n)}/${n}`, count('speciesOk'), n, count('speciesOk') >= scaled(9, n)],
+    [`species in top-3 >= ${scaled(13, n)}/${n}`, count('top3Ok'), n, count('top3Ok') >= scaled(13, n)],
     ['every identify < 10 s', rows.length - slow, rows.length, slow === 0],
     ['negatives refused, nothing saved', negatives.filter((r) => r.negativeOk).length, negatives.length, negatives.every((r) => r.negativeOk)],
+    ['care guide inside the species careBar (dry-out / moist)', cared.filter((r) => r.careOk).length, cared.length, cared.every((r) => r.careOk)],
+    ['lowConfidence flag == (score < 0.3)', lows.filter((r) => r.lowOk).length, lows.length, lows.every((r) => r.lowOk)],
   ];
   console.log('\nBars:');
   for (const [name, got, of, ok] of results) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}: ${got}/${of}`);
-  const out = { base: BASE, ranAt: new Date().toISOString(), rows, bars: results.map(([name, got, of, ok]) => ({ name, got, of, ok })) };
+  const out = { base: BASE, ranAt: new Date().toISOString(), partial: ONLY.length ? ONLY : null, rows, bars: results.map(([name, got, of, ok]) => ({ name, got, of, ok })) };
   const outFile = path.join(process.env.CORPUS_OUT || '/tmp', `plantit-corpus-${Date.now()}.json`);
   fs.writeFileSync(outFile, JSON.stringify(out, null, 2));
   console.log(`Results written to ${outFile}`);

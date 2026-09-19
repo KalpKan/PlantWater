@@ -213,7 +213,17 @@ function createApp(deps = {}) {
 
     const jpeg = await normaliseImage(file.buffer, log);
     const ident = await prov.identify({ buffer: jpeg, guard: guardFor('plantnet', 'PLANTNET_DAILY_LIMIT'), log });
+    if (ident.notAPlant || !Array.isArray(ident.candidates) || ident.candidates.length === 0) {
+      // Pl@ntNet looked and found no plant (its HTTP 404 "Species not found"): refuse the photo
+      // here, before the photo upload and the Firestore write, so a mug never becomes a Monstera.
+      return res.status(422).json({
+        error: 'This does not look like a plant. Try a closer photo of the leaves or flowers, in good light.',
+        notAPlant: true,
+        reason: ident.reason || 'plantnet_species_not_found',
+      });
+    }
     const top = ident.candidates[0];
+    const lowConfidence = ident.lowConfidence === true;
     const species = top.species.scientificNameWithoutAuthor;
     const guide = await prov.careGuide({ species, visitorKey: visitorOpenAIKey(req), log });
     const care = guide.care;
@@ -239,6 +249,7 @@ function createApp(deps = {}) {
       commonName: (top.species.commonNames && top.species.commonNames[0]) || 'Unknown',
       family: (top.species.family && top.species.family.scientificNameWithoutAuthor) || 'Unknown',
       confidence: top.score,
+      lowConfidence,
       demo: ident.demo,
       identificationSource: ident.demo ? 'demo' : 'plantnet',
       careSource: guide.source,
@@ -268,6 +279,7 @@ function createApp(deps = {}) {
     res.json({
       candidates: ident.candidates,
       demo: ident.demo,
+      lowConfidence,
       reason: ident.reason || null,
       careInstructions: care,
       careSource: guide.source,
@@ -473,7 +485,8 @@ function createApp(deps = {}) {
     res.json({ devices, hardwareRequired: true, message: `Found ${devices.length} device(s)` });
   }));
 
-  app.use('/api', (req, res) => res.status(404).json({ error: `No route ${req.method} ${req.originalUrl}` }));
+  // req.path, not originalUrl: vercel.json rewrites /api/* to /api/index?path=..., and that query string is not the visitor's.
+  app.use('/api', (req, res) => res.status(404).json({ error: `No route ${req.method} ${req.baseUrl}${req.path === '/' ? '' : req.path}` }));
 
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {

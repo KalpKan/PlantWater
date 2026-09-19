@@ -10,7 +10,8 @@
     "speciesTop3": ">= 13 of 15 have a ground-truth species within the top 3 candidates returned by the API (live baseline: 15/15)",
     "latency": "every /api/identify round trip completes in < 10 s wall clock (live baseline: slowest 2.1 s from this Mac; the browser adds the upload)",
     "negatives": "not-a-plant-mug.jpg -> a clear \"not a plant\" message, no plant saved, no console error; too-small.jpg -> refused client-side before any request; not-an-image.txt -> not selectable, and 400 from the API",
-    "lowConfidence": "a top-1 score < 0.3 (monstera-deliciosa-2, both peace lilies at calibration) is shown with a visible low-confidence warning and the other candidates, not as a confident answer"
+    "lowConfidence": "a top-1 score < 0.3 comes back with lowConfidence: true (and the UI shows a warning plus the runner-up candidates); >= 0.3 with lowConfidence: false (FIX round 1 makes the API flag it)",
+    "care": "every plant photo whose ground truth carries a careBar gets a care guide inside it: drought species (snake plant, ZZ, aloe, jade) wateringThreshold <= 12 and \"completely dry\" wording; peace lily >= 25 and \"moist\"; the aroids/fig 15-25 (added FIX round 1, D2)"
   },
   "items": [
     {
@@ -49,6 +50,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -87,6 +93,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -126,6 +137,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -164,6 +180,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -208,6 +229,11 @@
         "demo": false,
         "careSource": "generic",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMax": 12,
+        "wateringMustMatch": "completely dry",
+        "why": "drought-tolerant: rots when kept moist"
       }
     },
     {
@@ -252,6 +278,11 @@
         "demo": false,
         "careSource": "generic",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMax": 12,
+        "wateringMustMatch": "completely dry",
+        "why": "drought-tolerant: rots when kept moist"
       }
     },
     {
@@ -290,6 +321,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 25,
+        "wateringMustMatch": "moist",
+        "why": "peace lily wilts when it dries out"
       }
     },
     {
@@ -328,6 +364,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 25,
+        "wateringMustMatch": "moist",
+        "why": "peace lily wilts when it dries out"
       }
     },
     {
@@ -366,6 +407,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -404,6 +450,11 @@
         "demo": false,
         "careSource": "bundled",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMin": 15,
+        "wateringThresholdMax": 25,
+        "why": "ordinary aroid/fig: let the top few cm dry"
       }
     },
     {
@@ -442,6 +493,11 @@
         "demo": false,
         "careSource": "generic",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMax": 12,
+        "wateringMustMatch": "completely dry",
+        "why": "drought-tolerant: rots when kept moist"
       }
     },
     {
@@ -518,6 +574,11 @@
         "demo": false,
         "careSource": "generic",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMax": 12,
+        "wateringMustMatch": "completely dry",
+        "why": "drought-tolerant: rots when kept moist"
       }
     },
     {
@@ -594,6 +655,11 @@
         "demo": false,
         "careSource": "generic",
         "error": null
+      },
+      "careBar": {
+        "wateringThresholdMax": 12,
+        "wateringMustMatch": "completely dry",
+        "why": "drought-tolerant: rots when kept moist"
       }
     },
     {

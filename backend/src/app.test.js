@@ -365,3 +365,51 @@ describe('legacy Firebase Storage photos', () => {
     expect(byId.none1).toMatchObject({ imageUrl: null, photoStatus: 'none' });
   });
 });
+
+describe('not-a-plant photos and low-confidence answers (TEST round 1 D1 / D3)', () => {
+  const png = Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n'), Buffer.alloc(20000, 5)]);
+  const candidate = (name, score) => ({ score, species: { scientificNameWithoutAuthor: name, commonNames: [name], genus: { scientificNameWithoutAuthor: name.split(' ')[0] }, family: { scientificNameWithoutAuthor: 'Araceae' } } });
+
+  test('a photo Pl@ntNet finds no plant in is refused with 422 before any upload or Firestore write', async () => {
+    const firebase = fakeFirebase();
+    const uploads = [];
+    const storage = { isConfigured: () => true, uploadPhoto: async (args) => { uploads.push(args); return { publicUrl: 'https://x/y.jpg', path: 'y.jpg' }; }, deletePhoto: async () => {} };
+    const providers = {
+      identify: async () => ({ candidates: [], demo: false, notAPlant: true, reason: 'plantnet_species_not_found', lowConfidence: false }),
+      careGuide: async () => { throw new Error('careGuide must not be called for a non-plant'); },
+    };
+    const app = createApp({ firebase, env, log, now: () => t0, providers, storage });
+    const res = await request(app).post('/api/identify').set('Authorization', 'Bearer good').attach('image', png, { filename: 'mug.jpg', contentType: 'image/jpeg' });
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ notAPlant: true, reason: 'plantnet_species_not_found' });
+    expect(res.body.error).toMatch(/does not look like a plant/i);
+    expect(res.body.savedPlant).toBeUndefined();
+    expect(uploads).toHaveLength(0);
+    expect(firebase.rtdbWrites).toHaveLength(0);
+    const list = await request(app).get('/api/plants').set('Authorization', 'Bearer good');
+    expect(list.body).toEqual([]);
+  });
+
+  test('a low-confidence answer is saved with lowConfidence: true and all candidates are returned', async () => {
+    const firebase = fakeFirebase();
+    const providers = {
+      identify: async () => ({ candidates: [candidate('Livistona chinensis', 0.104), candidate('Monstera deliciosa', 0.09), candidate('Philodendron pastazanum', 0.05)], demo: false, lowConfidence: true }),
+      careGuide: async () => ({ care: { watering: 'w', light: 'l', temperature: 't', humidity: 'h', soil: 's', fertilizer: 'f', soilMoisture: { minVWC: 15, maxVWC: 45, optimalVWC: 30, wateringThreshold: 20 } }, source: 'generic', reason: 'no_openai_key' }),
+    };
+    const app = createApp({ firebase, env, log, now: () => t0, providers });
+    const res = await request(app).post('/api/identify').set('Authorization', 'Bearer good').attach('image', png, { filename: 'leaf.jpg', contentType: 'image/jpeg' });
+    expect(res.status).toBe(200);
+    expect(res.body.lowConfidence).toBe(true);
+    expect(res.body.candidates).toHaveLength(3);
+    expect(res.body.savedPlant.lowConfidence).toBe(true);
+    const list = await request(app).get('/api/plants').set('Authorization', 'Bearer good');
+    expect(list.body[0].lowConfidence).toBe(true);
+  });
+
+  test('an unknown API route does not echo the rewrite\'s internal query string (D11)', async () => {
+    const app = createApp({ firebase: fakeFirebase(), env, log, now: () => t0 });
+    const res = await request(app).get('/api/nope?path=nope');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('No route GET /api/nope');
+  });
+});

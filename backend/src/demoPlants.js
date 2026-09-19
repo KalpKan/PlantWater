@@ -1,5 +1,5 @@
 /**
- * Five common houseplants with Pl@ntNet-shaped identification results and
+ * Six common houseplants with Pl@ntNet-shaped identification results and
  * complete care guidance. Used when no Pl@ntNet / OpenAI key is configured,
  * when the daily spend guard is exhausted, or when a provider call fails, so
  * the app always works for a visitor. Results from this file are labelled
@@ -37,7 +37,10 @@ const DEMO_PLANTS = [
     },
   },
   {
-    species: 'Sansevieria trifasciata',
+    // Pl@ntNet (and POWO) use the accepted name Dracaena trifasciata; the trade still says Sansevieria.
+    species: 'Dracaena trifasciata',
+    synonyms: ['Sansevieria trifasciata', 'Sansevieria zeylanica', 'Dracaena zeylanica', 'Sansevieria cylindrica', 'Dracaena angolensis', 'Sansevieria laurentii'],
+    genera: ['Sansevieria'], // not "Dracaena": D. marginata / D. fragrans are not bone-dry plants
     commonNames: ['Snake plant', "Mother-in-law's tongue"],
     family: 'Asparagaceae',
     score: 0.93,
@@ -64,6 +67,21 @@ const DEMO_PLANTS = [
       soil: 'Rich, peat-based potting mix that holds moisture but drains well.',
       fertilizer: 'Balanced liquid feed at quarter strength every 6 weeks in spring and summer.',
       soilMoisture: { minVWC: 22, maxVWC: 52, optimalVWC: 38, wateringThreshold: 28 },
+    },
+  },
+  {
+    species: 'Zamioculcas zamiifolia',
+    commonNames: ['ZZ plant', 'Zanzibar gem'],
+    family: 'Araceae',
+    score: 0.9,
+    care: {
+      watering: 'Water only when the soil is completely dry, every 2-3 weeks (monthly in winter). Its rhizomes store water, so when in doubt, wait; yellowing stems mean too much water.',
+      light: 'Low to bright, indirect light; it tolerates dim corners. Keep out of hot direct sun.',
+      temperature: '18-26 C (65-79 F). Keep above 10 C (50 F).',
+      humidity: 'Average room humidity is fine; no misting needed.',
+      soil: 'Fast-draining mix: potting soil with plenty of perlite or a cactus mix.',
+      fertilizer: 'Balanced liquid feed at half strength once or twice in spring and summer.',
+      soilMoisture: { minVWC: 5, maxVWC: 28, optimalVWC: 14, wateringThreshold: 8 },
     },
   },
   {
@@ -106,14 +124,20 @@ function pickDemoPlant(buffer) {
   return DEMO_PLANTS[h % DEMO_PLANTS.length];
 }
 
-/** Canned care for a species, matched on the full name first and then on the genus. */
+/**
+ * Canned care for a species: matched on the accepted name, then on a listed
+ * synonym (old names still in circulation, e.g. Sansevieria trifasciata for
+ * the snake plant), then on the genus. An entry's `genera` list overrides the
+ * genus taken from its name when the genus is too broad to share the guide.
+ */
 function findCannedCare(speciesName) {
   const name = String(speciesName || '').trim().toLowerCase();
   if (!name) return null;
-  const exact = DEMO_PLANTS.find((p) => p.species.toLowerCase() === name);
+  const exact = DEMO_PLANTS.find((p) => p.species.toLowerCase() === name
+    || (p.synonyms || []).some((syn) => syn.toLowerCase() === name));
   if (exact) return exact.care;
   const genus = name.split(/\s+/)[0];
-  const byGenus = DEMO_PLANTS.find((p) => p.species.toLowerCase().split(' ')[0] === genus);
+  const byGenus = DEMO_PLANTS.find((p) => (p.genera || [p.species.split(' ')[0]]).some((g) => g.toLowerCase() === genus));
   return byGenus ? byGenus.care : null;
 }
 

@@ -1,8 +1,8 @@
 const { DEMO_PLANTS, pickDemoPlant, findCannedCare, toCandidate } = require('./demoPlants');
 
 describe('bundled demo plants', () => {
-  test('ships exactly five common plants with complete care guidance', () => {
-    expect(DEMO_PLANTS).toHaveLength(5);
+  test('ships six common plants with complete care guidance', () => {
+    expect(DEMO_PLANTS).toHaveLength(6);
     for (const p of DEMO_PLANTS) {
       expect(p.species).toMatch(/^[A-Z][a-z]+ [a-z]+$/);
       expect(p.commonNames.length).toBeGreaterThan(0);
@@ -36,5 +36,27 @@ describe('bundled demo plants', () => {
     expect(c.species.commonNames).toEqual(DEMO_PLANTS[0].commonNames);
     expect(c.species.family.scientificNameWithoutAuthor).toBe(DEMO_PLANTS[0].family);
     expect(c.score).toBeGreaterThan(0);
+  });
+});
+
+describe('drought-tolerant houseplants get dry-out care (TEST round 1 D2)', () => {
+  const dry = (care) => {
+    expect(care).not.toBeNull();
+    expect(care.soilMoisture.wateringThreshold).toBeLessThanOrEqual(12);
+    expect(care.watering).toMatch(/completely dry/i);
+  };
+  test('the snake plant is found under its accepted name Dracaena trifasciata and its old name Sansevieria trifasciata', () => {
+    dry(findCannedCare('Dracaena trifasciata'));
+    dry(findCannedCare('Sansevieria trifasciata'));
+    dry(findCannedCare('sansevieria zeylanica'));
+    expect(findCannedCare('Dracaena trifasciata')).toBe(findCannedCare('Sansevieria trifasciata'));
+  });
+  test('the ZZ plant has a bundled guide', () => {
+    dry(findCannedCare('Zamioculcas zamiifolia'));
+    dry(findCannedCare('Zamioculcas'));
+  });
+  test('other Dracaena species do not inherit the snake-plant guide through the genus rule', () => {
+    expect(findCannedCare('Dracaena marginata')).toBeNull();
+    expect(findCannedCare('Dracaena fragrans')).toBeNull();
   });
 });

@@ -11,7 +11,7 @@
  *     and is never stored, logged or configured on the server: there is no
  *     OPENAI_API_KEY environment variable, by decision (2026-09-18, no paid
  *     keys in public demos). Without a visitor key the care guide comes from
- *     the bundled library (five common houseplants) or generic guidance.
+ *     the bundled library (six common houseplants) or generic guidance.
  */
 const axios = require('axios');
 const FormData = require('form-data');
@@ -26,34 +26,60 @@ const plantNet = axios.create({
   headers: { accept: 'application/json' },
 });
 
-async function identifyWithPlantNet({ buffer, apiKey }) {
+/** Below this top-1 score the answer is shown with a low-confidence warning and the runner-up candidates (spec S2). */
+const LOW_CONFIDENCE_SCORE = 0.3;
+
+class NotAPlantError extends Error {
+  constructor(message) { super(message); this.code = 'NOT_A_PLANT'; }
+}
+
+/**
+ * One Pl@ntNet call. Pl@ntNet answers HTTP 404 {"message":"Species not found"}
+ * when it sees no plant in the photo (a mug, a face, a wall): that is a normal
+ * answer, not an outage, and is raised as NotAPlantError so the caller can
+ * refuse the photo instead of guessing. `client` is injectable for tests.
+ */
+async function identifyWithPlantNet({ buffer, apiKey, client = plantNet }) {
   const form = new FormData();
   form.append('images', buffer, { filename: 'plant.jpg', contentType: 'image/jpeg' });
   form.append('organs', 'auto');
-  const response = await plantNet.post(`/identify/all?api-key=${encodeURIComponent(apiKey)}`, form, { headers: form.getHeaders() });
+  let response;
+  try {
+    response = await client.post(`/identify/all?api-key=${encodeURIComponent(apiKey)}`, form, { headers: form.getHeaders() });
+  } catch (error) {
+    if (error && error.response && error.response.status === 404) throw new NotAPlantError('Pl@ntNet: species not found (no plant in the photo)');
+    throw error;
+  }
   const results = response.data && response.data.results;
-  if (!Array.isArray(results) || results.length === 0) throw new Error('Pl@ntNet returned no results');
+  if (!Array.isArray(results) || results.length === 0) throw new NotAPlantError('Pl@ntNet returned no results');
   return results.slice(0, 5).map((r) => ({ species: r.species, score: r.score }));
 }
 
 /**
  * Identify a plant. `guard` is the Pl@ntNet SpendGuard. Returns
- * { candidates, demo, reason } where reason explains a demo answer.
+ * { candidates, demo, reason, lowConfidence, notAPlant } where reason explains a
+ * demo answer. notAPlant: true (empty candidates) means Pl@ntNet looked and saw
+ * no plant; the API answers 422 and saves nothing. Only real failures (5xx,
+ * network, timeout) fall back to the bundled demo list.
  */
-async function identify({ buffer, guard, apiKey = process.env.PLANTNET_API_KEY, log = console }) {
+async function identify({ buffer, guard, apiKey = process.env.PLANTNET_API_KEY, log = console, client = plantNet }) {
   if (!apiKey) {
-    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'no_plantnet_key' };
+    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'no_plantnet_key', lowConfidence: false };
   }
   const slot = await guard.tryAcquire();
   if (!slot.allowed) {
-    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'plantnet_daily_limit', spend: slot };
+    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'plantnet_daily_limit', lowConfidence: false, spend: slot };
   }
   try {
-    const candidates = await identifyWithPlantNet({ buffer, apiKey });
-    return { candidates, demo: false, spend: slot };
+    const candidates = await identifyWithPlantNet({ buffer, apiKey, client });
+    const top = Number(candidates[0] && candidates[0].score) || 0;
+    return { candidates, demo: false, lowConfidence: top < LOW_CONFIDENCE_SCORE, spend: slot };
   } catch (error) {
+    if (error && error.code === 'NOT_A_PLANT') {
+      return { candidates: [], demo: false, notAPlant: true, reason: 'plantnet_species_not_found', lowConfidence: false, spend: slot };
+    }
     log.error('Pl@ntNet failed, using demo identification:', error.message);
-    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'plantnet_error', spend: slot };
+    return { candidates: [toCandidate(pickDemoPlant(buffer))], demo: true, reason: 'plantnet_error', lowConfidence: false, spend: slot };
   }
 }
 
@@ -101,7 +127,8 @@ function genericCare(species) {
     fertilizer: 'Balanced liquid feed at half strength every 2-4 weeks in spring and summer.',
     soilMoisture: { minVWC: 15, maxVWC: 45, optimalVWC: 30, wateringThreshold: 20 },
   };
-  if (/cact|succulent|aloe|echeveria|crassula|haworthia|sansevieria/.test(name)) {
+  // Drought-tolerant group: succulents plus the rhizome/rosette houseplants that rot when kept moist.
+  if (/cact|succulent|aloe|echeveria|crassula|haworthia|sansevieria|dracaena trifasciata|zamioculcas|zamiifolia|kalanchoe|gasteria|sedum|sempervivum|agave|yucca|beaucarnea|lithops/.test(name)) {
     return { ...base,
       watering: 'Water only when the soil is completely dry, every 2-4 weeks. Overwatering is the main risk.',
       light: 'Bright light with some direct sun.',
@@ -125,11 +152,15 @@ function genericCare(species) {
   return base;
 }
 
-/** Scrub a secret (and anything that looks like an OpenAI key) out of text before it is logged or returned. */
+/**
+ * Scrub a secret (and anything that looks like an OpenAI key, including the
+ * starred form OpenAI itself puts in its error messages, "sk-inval***mnop")
+ * out of text before it is logged or returned.
+ */
 function redactSecret(text, secret) {
   let out = String(text || '');
   if (secret) out = out.split(secret).join('[redacted]');
-  return out.replace(/sk-[A-Za-z0-9_-]{6,}/g, 'sk-[redacted]');
+  return out.replace(/\bsk-[A-Za-z0-9_*.-]*[A-Za-z0-9_*-]/g, 'sk-[redacted]');
 }
 
 /** Short, key-free classification of an OpenAI failure for the visitor ("why did my key not work?"). */
@@ -161,7 +192,10 @@ async function careGuide({ species, visitorKey, log = console, openai = careWith
       return { care, source: 'openai', keySource: 'visitor' };
     } catch (error) {
       const openaiError = classifyOpenAIError(error);
-      log.error('OpenAI (visitor key) failed, using the built-in guide:', openaiError, redactSecret(error && error.message, key));
+      // Only the classification and the HTTP status are logged: OpenAI's own message repeats the
+      // first and last characters of the key ("sk-inval***mnop"), and the app promises it is never logged.
+      const status = error && (error.status || (error.response && error.response.status));
+      log.error('OpenAI (visitor key) failed, using the built-in guide:', openaiError, status ? `HTTP ${status}` : '(no HTTP status)');
       return {
         care: canned || genericCare(species),
         source: canned ? 'bundled' : 'generic',
@@ -175,4 +209,4 @@ async function careGuide({ species, visitorKey, log = console, openai = careWith
   return { care: genericCare(species), source: 'generic', reason: 'no_openai_key' };
 }
 
-module.exports = { identify, careGuide, identifyWithPlantNet, careWithOpenAI, genericCare, redactSecret, classifyOpenAIError, DEMO_PLANTS };
+module.exports = { identify, careGuide, NotAPlantError, LOW_CONFIDENCE_SCORE, identifyWithPlantNet, careWithOpenAI, genericCare, redactSecret, classifyOpenAIError, DEMO_PLANTS };

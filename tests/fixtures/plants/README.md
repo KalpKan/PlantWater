@@ -19,13 +19,15 @@ Real photos with ground truth for testing `POST /api/identify` and the Add Plant
 | `zamioculcas-zamiifolia.jpg` | *Zamioculcas zamiifolia* | no | clear |
 | `pilea-peperomioides.jpg` | *Pilea peperomioides* | no | clear |
 | `crassula-ovata.jpg` | *Crassula ovata* | no (generic succulent rule) | clear |
-| `not-a-plant-mug.jpg` | not a plant (Pl@ntNet answers 404) | n/a | negative |
+| `not-a-plant-mug.jpg` | not a plant (Pl@ntNet answers 404; the API answers 422 `notAPlant`) | n/a | negative |
 | `too-small.jpg` | ~1 KB, under the 10 KB minimum | n/a | negative |
 | `not-an-image.txt` | text file | n/a | negative |
 
 `ground-truth.json` holds the same table as data, plus each photo's Wikimedia Commons source and licence, and `plantnetCalibration`: what Pl@ntNet answered for these exact bytes on 2026-09-19 (top-1, score, top-3, latency). The measurable bars are in `bars` and in `docs/reports/plantit-spec.md` in the portfolio repo.
 
-Note on the bundled library (found while calibrating): `backend/src/demoPlants.js` lists *Sansevieria trifasciata*, but Pl@ntNet returns the accepted name *Dracaena trifasciata*. Neither the exact name nor the genus matches the library, and `genericCare`'s succulent rule only knows the word "sansevieria", so a snake plant identified live gets the **base generic guide** ("water when the top 2-3 cm feels dry", threshold 20 %), which is the opposite of snake-plant care (water only when bone dry, threshold 8 %). Also *Zamioculcas* (ZZ, drought-tolerant) falls to the base generic guide. Both are care-guidance defects for the spec's story 3.
+Note on the bundled library (found while calibrating, fixed in FIX round 1): `backend/src/demoPlants.js` used to list *Sansevieria trifasciata* only, while Pl@ntNet returns the accepted name *Dracaena trifasciata*, so a live snake plant got the base generic guide (threshold 20 %) and so did *Zamioculcas*. The library entry is now *Dracaena trifasciata* with the old names as `synonyms`, the ZZ plant has its own entry, and `genericCare`'s dry-out rule also knows zamioculcas/kalanchoe/agave and friends. Each item in `ground-truth.json` now carries a `careBar` (threshold range + wording) that both `scripts/run-corpus.js` and `backend/src/corpus.test.js` check.
+
+`backend/src/corpus.test.js` replays the recorded `plantnetCalibration` answers through the real API (multer, sharp, providers, care, the Firestore write) with no network, so `npm test` scores the same bars offline on every push: genus/species/top-3 counts, negatives 3/3 (mug 422), `lowConfidence` == (score < 0.3), and the care bars.
 
 ## Running the corpus
 

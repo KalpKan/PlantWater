@@ -23,8 +23,10 @@ export function initAnalytics() {
       });
     });
   };
-  if (document.readyState === 'complete') boot();
-  else window.addEventListener('load', boot, { once: true });
+  // After load AND when the main thread is idle (bounded at 2.5 s): analytics never competes with the first paint.
+  const whenIdle = () => (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(boot, { timeout: 2500 }) : setTimeout(boot, 1200));
+  if (document.readyState === 'complete') whenIdle();
+  else window.addEventListener('load', whenIdle, { once: true });
 }
 
 /** Custom events: plant_photo_uploaded, plant_identified, water_now_clicked. Sent instantly over sendBeacon. */

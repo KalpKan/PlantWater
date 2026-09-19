@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
 
 // Firebase web config is public by design (it identifies the project; access
 // is controlled by Firebase Auth and the security rules in firebase/).
@@ -14,5 +14,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// initializeAuth without a popupRedirectResolver: getAuth() would load Google's
+// sign-in iframe (~95 KB) on every page view to check for a pending redirect.
+// Login.js passes browserPopupRedirectResolver to signInWithPopup instead, so the
+// iframe loads only when the button is clicked (TEST round 1 D6). The persistence
+// order is getAuth()'s default, so existing sessions keep working.
+export const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
 export default app;

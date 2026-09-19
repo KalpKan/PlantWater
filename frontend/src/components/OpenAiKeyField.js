@@ -66,7 +66,7 @@ export default function OpenAiKeyField({ onChange }) {
       </AccordionSummary>
       <AccordionDetails>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Without a key, care guides come from the built-in library (five common houseplants) or general houseplant
+          Without a key, care guides come from the built-in library (six common houseplants) or general houseplant
           advice. With your own key, OpenAI writes a species-specific guide on your account. The key stays in this
           browser only: it is sent with each identification request in a header, used for that one call, and never
           stored or logged on the server. Logging out removes it from this browser.
