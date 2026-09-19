@@ -9,7 +9,7 @@ function NotFound() {
     <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
       <Card>
         <CardContent>
-          <Typography variant="h4" gutterBottom>That page does not exist</Typography>
+          <Typography variant="h4" component="h1" gutterBottom>That page does not exist</Typography>
           <Typography variant="body1" color="text.secondary" paragraph>
             There is nothing at <code data-testid="missing-path">{pathname}</code>. Plant It has a home page, My Plants and Add Plant.
           </Typography>

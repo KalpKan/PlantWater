@@ -102,7 +102,7 @@ function PlantDetails() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1000, mx: 'auto' }}>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" component="h1" gutterBottom>
         Plant Identification Results
       </Typography>
 
@@ -139,13 +139,13 @@ function PlantDetails() {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Typography variant="h6">Identified Plant</Typography>
+                <Typography variant="h6" component="h2">Identified Plant</Typography>
                 {demo && <Chip size="small" label="Demo result" color="info" variant="outlined" />}
               </Box>
               {imageUrl && (
                 <img src={imageUrl} alt="Uploaded plant" style={{ width: '100%', borderRadius: 8, marginBottom: 16 }} />
               )}
-              <Typography variant="h5" gutterBottom data-testid="species">
+              <Typography variant="h5" component="p" gutterBottom data-testid="species">
                 {topMatch.species.scientificNameWithoutAuthor}
               </Typography>
               <Typography variant="body1" color="text.secondary" gutterBottom>
@@ -183,7 +183,7 @@ function PlantDetails() {
         <Grid item xs={12} md={7}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" component="h2" gutterBottom>
                 Care Instructions
               </Typography>
               {sourceKey && (

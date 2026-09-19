@@ -17,7 +17,7 @@ function Home() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" component="h1" gutterBottom>
         Welcome to Plant It
       </Typography>
       
@@ -29,7 +29,7 @@ function Home() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" component="h2" gutterBottom>
                 Identify a New Plant
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -51,7 +51,7 @@ function Home() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" component="h2" gutterBottom>
                 View Your Plants
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -72,14 +72,14 @@ function Home() {
       </Grid>
 
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h5" gutterBottom>
+        <Typography variant="h5" component="h2" gutterBottom>
           How It Works
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" component="h3" gutterBottom>
                   1. Upload
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -91,7 +91,7 @@ function Home() {
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" component="h3" gutterBottom>
                   2. Identify
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -103,7 +103,7 @@ function Home() {
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" component="h3" gutterBottom>
                   3. Care and water
                 </Typography>
                 <Typography variant="body2" color="text.secondary">

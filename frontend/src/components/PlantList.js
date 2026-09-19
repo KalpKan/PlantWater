@@ -158,7 +158,7 @@ function PlantList() {
       <Typography
         variant="h4"
         gutterBottom
-        component={motion.h2}
+        component={motion.h1}
         initial={{ opacity: 0, x: -32 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -174,7 +174,7 @@ function PlantList() {
 
       {plants.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
+          <Typography variant="h6" component="p" color="text.secondary" gutterBottom>
             No plants yet
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
@@ -196,7 +196,7 @@ function PlantList() {
                     <PlantPhoto plant={plant} height={200} />
                     <CardContent>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, gap: 1 }}>
-                        <Typography variant="h6" gutterBottom sx={{ fontStyle: 'italic' }}>
+                        <Typography variant="h6" component="h2" gutterBottom sx={{ fontStyle: 'italic' }}>
                           {plant.species}
                         </Typography>
                         <IconButton
@@ -260,7 +260,7 @@ function PlantList() {
                   <SensorPanel plantId={selectedPlant.id} onWatered={onWatered} />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>Care Instructions</Typography>
+                  <Typography variant="h6" component="h3" gutterBottom>Care Instructions</Typography>
                   {selectedPlant.careInstructions ? (
                     <List>
                       {[

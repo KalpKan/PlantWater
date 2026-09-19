@@ -100,7 +100,7 @@ function PlantUpload() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" component="h1" gutterBottom>
         Add New Plant
       </Typography>
 
