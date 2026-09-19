@@ -1,0 +1,681 @@
+{
+  "description": "Plant It identification corpus: 15 real plant photos covering 10 species (the five bundled-care species Monstera, Epipremnum, Dracaena/Sansevieria, Spathiphyllum and Ficus lyrata have two photos each; Aloe, Chlorophytum, Zamioculcas, Pilea and Crassula one each) plus 3 negatives. Ground truth was set from the Wikimedia Commons file names and categories and every photo was checked by eye (spec agent, 2026-09-19). plantnetCalibration is what Pl@ntNet /v2/identify/all answered for the exact bytes in this folder on 2026-09-19 with the operator key: genus-correct top-1 on 14/15 plant photos, species-correct top-1 on 11/15 (Epipremnum pinnatum is accepted for the mature-form pothos photo; 10/15 without it), ground-truth species within the top 3 on 14/15.",
+  "calibratedOn": "2026-09-19",
+  "acceptedSynonyms": {
+    "Sansevieria trifasciata": "Dracaena trifasciata"
+  },
+  "bars": {
+    "genusTop1": ">= 13 of the 15 plant photos have the ground-truth genus as the top-1 candidate (live baseline 2026-09-19: 15/15)",
+    "speciesTop1": ">= 9 of the 15 plant photos have a ground-truth species (or accepted synonym) as the top-1 candidate (live baseline: 14/15)",
+    "speciesTop3": ">= 13 of 15 have a ground-truth species within the top 3 candidates returned by the API (live baseline: 15/15)",
+    "latency": "every /api/identify round trip completes in < 10 s wall clock (live baseline: slowest 2.1 s from this Mac; the browser adds the upload)",
+    "negatives": "not-a-plant-mug.jpg -> a clear \"not a plant\" message, no plant saved, no console error; too-small.jpg -> refused client-side before any request; not-an-image.txt -> not selectable, and 400 from the API",
+    "lowConfidence": "a top-1 score < 0.3 (monstera-deliciosa-2, both peace lilies at calibration) is shown with a visible low-confidence warning and the other candidates, not as a confident answer"
+  },
+  "items": [
+    {
+      "file": "monstera-deliciosa.jpg",
+      "species": [
+        "Monstera deliciosa"
+      ],
+      "genus": "Monstera",
+      "family": "Araceae",
+      "common": "Swiss cheese plant",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "one split Monstera leaf against a white wall",
+      "source": {
+        "wikimediaFile": "File:Bunga Monstera (Monstera Deliciosa).jpg",
+        "licence": "CC BY 4.0",
+        "author": "Aqilla Rahmi",
+        "url": "https://commons.wikimedia.org/wiki/File:Bunga_Monstera_(Monstera_Deliciosa).jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Monstera deliciosa",
+        "score": 0.761,
+        "common": "Monstera",
+        "top3": [
+          "Monstera deliciosa 76%",
+          "Philodendron bipinnatifidum 3%",
+          "Rhaphidophora tetrasperma 3%"
+        ],
+        "ms": 380
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 2145,
+        "top1": "Monstera deliciosa",
+        "score": 0.86,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "monstera-deliciosa-2.jpg",
+      "species": [
+        "Monstera deliciosa"
+      ],
+      "genus": "Monstera",
+      "family": "Araceae",
+      "common": "Swiss cheese plant",
+      "bundledCare": true,
+      "difficulty": "hard",
+      "what": "garden scene, monstera in the foreground among palms and other foliage (many plants in frame)",
+      "source": {
+        "wikimediaFile": "File:Cascade with monstera deliciosa (La Concepción).JPG",
+        "licence": "CC BY-SA 4.0",
+        "author": "Daniel Capilla",
+        "url": "https://commons.wikimedia.org/wiki/File:Cascade_with_monstera_deliciosa_(La_Concepción).JPG"
+      },
+      "plantnetCalibration": {
+        "top1": "Livistona chinensis",
+        "score": 0.1,
+        "common": "Chinese Fan Palm",
+        "top3": [
+          "Livistona chinensis 10%",
+          "Philodendron pastazanum 5%",
+          "Philodendron pterotum 4%"
+        ],
+        "ms": 502
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1809,
+        "top1": "Monstera deliciosa",
+        "score": 0.1,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "epipremnum-aureum.jpg",
+      "species": [
+        "Epipremnum aureum",
+        "Epipremnum pinnatum"
+      ],
+      "genus": "Epipremnum",
+      "family": "Araceae",
+      "common": "Golden pothos",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "mature pothos with large leaves climbing a tree trunk (Pl@ntNet treats E. pinnatum as a valid answer for the mature form)",
+      "source": {
+        "wikimediaFile": "File:Epipremnum aureum (pothos).jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "Filo gèn'",
+        "url": "https://commons.wikimedia.org/wiki/File:Epipremnum_aureum_(pothos).jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Epipremnum pinnatum",
+        "score": 0.54,
+        "common": "Pothos",
+        "top3": [
+          "Epipremnum pinnatum 54%",
+          "Epipremnum aureum 20%",
+          "Epipremnum amplissimum 1%"
+        ],
+        "ms": 423
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1572,
+        "top1": "Epipremnum pinnatum",
+        "score": 0.51,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "epipremnum-aureum-2.jpg",
+      "species": [
+        "Epipremnum aureum"
+      ],
+      "genus": "Epipremnum",
+      "family": "Araceae",
+      "common": "Golden pothos",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "variegated pothos climbing a tree",
+      "source": {
+        "wikimediaFile": "File:Devil's ivy image.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "KIRUTHIKA OFF",
+        "url": "https://commons.wikimedia.org/wiki/File:Devil's_ivy_image.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Epipremnum aureum",
+        "score": 0.627,
+        "common": "Golden pothos",
+        "top3": [
+          "Epipremnum aureum 63%",
+          "Epipremnum pinnatum 28%",
+          "Philodendron erubescens 0%"
+        ],
+        "ms": 330
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1452,
+        "top1": "Epipremnum aureum",
+        "score": 0.67,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "dracaena-trifasciata.jpg",
+      "species": [
+        "Dracaena trifasciata",
+        "Sansevieria trifasciata"
+      ],
+      "genus": [
+        "Dracaena",
+        "Sansevieria"
+      ],
+      "family": [
+        "Asparagaceae"
+      ],
+      "common": "Snake plant",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "yellow-edged snake plant leaves, close up",
+      "source": {
+        "wikimediaFile": "File:A Dracaena trifasciata.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "Joyifeoma45",
+        "url": "https://commons.wikimedia.org/wiki/File:A_Dracaena_trifasciata.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Dracaena trifasciata",
+        "score": 0.424,
+        "common": "Snake plant",
+        "top3": [
+          "Dracaena trifasciata 42%",
+          "Dracaena stuckyi 4%",
+          "Dracaena hyacinthoides 1%"
+        ],
+        "ms": 360
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1889,
+        "top1": "Dracaena trifasciata",
+        "score": 0.39,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "dracaena-trifasciata-2.jpg",
+      "species": [
+        "Dracaena trifasciata",
+        "Sansevieria trifasciata"
+      ],
+      "genus": [
+        "Dracaena",
+        "Sansevieria"
+      ],
+      "family": [
+        "Asparagaceae"
+      ],
+      "common": "Snake plant",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "potted snake plant by a brick wall",
+      "source": {
+        "wikimediaFile": "File:20210605 Hortus botanicus Leiden - Sansevieria trifasciata.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "Rudolphous",
+        "url": "https://commons.wikimedia.org/wiki/File:20210605_Hortus_botanicus_Leiden_-_Sansevieria_trifasciata.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Dracaena trifasciata",
+        "score": 0.543,
+        "common": "Snake plant",
+        "top3": [
+          "Dracaena trifasciata 54%",
+          "Dracaena stuckyi 3%",
+          "Dracaena hyacinthoides 2%"
+        ],
+        "ms": 396
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1373,
+        "top1": "Dracaena trifasciata",
+        "score": 0.49,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "spathiphyllum-wallisii.jpg",
+      "species": [
+        "Spathiphyllum wallisii"
+      ],
+      "genus": "Spathiphyllum",
+      "family": "Araceae",
+      "common": "Peace lily",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "two peace lily flowers among leaves",
+      "source": {
+        "wikimediaFile": "File:Peace Lilies (Spathiphyllum wallisii) (52432120770).jpg",
+        "licence": "CC BY-SA 2.0",
+        "author": "Bernard DUPONT",
+        "url": "https://commons.wikimedia.org/wiki/File:Peace_Lilies_(Spathiphyllum_wallisii)_(52432120770).jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Spathiphyllum blandum",
+        "score": 0.285,
+        "common": "Peace Lily",
+        "top3": [
+          "Spathiphyllum blandum 29%",
+          "Spathiphyllum friedrichsthalii 25%",
+          "Spathiphyllum wallisii 21%"
+        ],
+        "ms": 536
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1607,
+        "top1": "Spathiphyllum wallisii",
+        "score": 0.33,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "spathiphyllum-wallisii-2.jpg",
+      "species": [
+        "Spathiphyllum wallisii"
+      ],
+      "genus": "Spathiphyllum",
+      "family": "Araceae",
+      "common": "Peace lily",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "one peace lily flower in a greenhouse",
+      "source": {
+        "wikimediaFile": "File:Leipzig, botanischer Garten, Spathiphyllum wallisii.jpg",
+        "licence": "CC BY 4.0",
+        "author": "Dguendel",
+        "url": "https://commons.wikimedia.org/wiki/File:Leipzig,_botanischer_Garten,_Spathiphyllum_wallisii.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Spathiphyllum blandum",
+        "score": 0.169,
+        "common": "Peace Lily",
+        "top3": [
+          "Spathiphyllum blandum 17%",
+          "Spathiphyllum wallisii 16%",
+          "Spathiphyllum friedrichsthalii 13%"
+        ],
+        "ms": 491
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1246,
+        "top1": "Spathiphyllum wallisii",
+        "score": 0.19,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "ficus-lyrata.jpg",
+      "species": [
+        "Ficus lyrata"
+      ],
+      "genus": "Ficus",
+      "family": "Moraceae",
+      "common": "Fiddle-leaf fig",
+      "bundledCare": true,
+      "difficulty": "clear",
+      "what": "young fiddle-leaf fig outdoors, leaves visible",
+      "source": {
+        "wikimediaFile": "File:Ficus lyrata 153481613.jpg",
+        "licence": "CC BY 4.0",
+        "author": "ritirene",
+        "url": "https://commons.wikimedia.org/wiki/File:Ficus_lyrata_153481613.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Ficus lyrata",
+        "score": 0.864,
+        "common": "Fiddle leaf fig",
+        "top3": [
+          "Ficus lyrata 86%",
+          "Tectona grandis 2%",
+          "Ficus pandurata 2%"
+        ],
+        "ms": 385
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1338,
+        "top1": "Ficus lyrata",
+        "score": 0.89,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "ficus-lyrata-2.jpg",
+      "species": [
+        "Ficus lyrata"
+      ],
+      "genus": "Ficus",
+      "family": "Moraceae",
+      "common": "Fiddle-leaf fig",
+      "bundledCare": true,
+      "difficulty": "hard",
+      "what": "whole mature fiddle-leaf fig tree seen from a distance",
+      "source": {
+        "wikimediaFile": "File:Ficus lyrata 200718744.jpg",
+        "licence": "CC BY 4.0",
+        "author": "Thalia M. Mite",
+        "url": "https://commons.wikimedia.org/wiki/File:Ficus_lyrata_200718744.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Ficus lyrata",
+        "score": 0.836,
+        "common": "Fiddle leaf fig",
+        "top3": [
+          "Ficus lyrata 84%",
+          "Morinda citrifolia 1%",
+          "Terminalia catappa 1%"
+        ],
+        "ms": 433
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1627,
+        "top1": "Ficus lyrata",
+        "score": 0.85,
+        "demo": false,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "aloe-vera.jpg",
+      "species": [
+        "Aloe vera"
+      ],
+      "genus": "Aloe",
+      "family": "Asphodelaceae",
+      "common": "Aloe vera",
+      "bundledCare": false,
+      "difficulty": "hard",
+      "what": "aloe vera field in flower, wide shot",
+      "source": {
+        "wikimediaFile": "File:+ La Finca De Aloe Vera. 01.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "Holger Uwe Schmitt",
+        "url": "https://commons.wikimedia.org/wiki/File:+_La_Finca_De_Aloe_Vera._01.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Aloe vera",
+        "score": 0.888,
+        "common": "Aloe vera",
+        "top3": [
+          "Aloe vera 89%",
+          "Aloe ferox 1%",
+          "Aloiampelos striatula 1%"
+        ],
+        "ms": 1323
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1518,
+        "top1": "Aloe vera",
+        "score": 0.88,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "chlorophytum-comosum.jpg",
+      "species": [
+        "Chlorophytum comosum"
+      ],
+      "genus": "Chlorophytum",
+      "family": "Asparagaceae",
+      "common": "Spider plant",
+      "bundledCare": false,
+      "difficulty": "clear",
+      "what": "potted variegated spider plant",
+      "source": {
+        "wikimediaFile": "File:Chlorophytum comosum (cropped).jpg",
+        "licence": "CC BY-SA 2.5",
+        "author": "Nguyễn Dương Khang",
+        "url": "https://commons.wikimedia.org/wiki/File:Chlorophytum_comosum_(cropped).jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Chlorophytum comosum",
+        "score": 0.684,
+        "common": "Spider Plant",
+        "top3": [
+          "Chlorophytum comosum 68%",
+          "Chlorophytum capense 30%",
+          "Ananas comosus 0%"
+        ],
+        "ms": 304
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1229,
+        "top1": "Chlorophytum comosum",
+        "score": 0.73,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "zamioculcas-zamiifolia.jpg",
+      "species": [
+        "Zamioculcas zamiifolia"
+      ],
+      "genus": "Zamioculcas",
+      "family": "Araceae",
+      "common": "ZZ plant",
+      "bundledCare": false,
+      "difficulty": "clear",
+      "what": "ZZ plant stems outdoors",
+      "source": {
+        "wikimediaFile": "File:Millonaria (Zamioculcas zamiifolia).jpg",
+        "licence": "CC0",
+        "author": "Muago",
+        "url": "https://commons.wikimedia.org/wiki/File:Millonaria_(Zamioculcas_zamiifolia).jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Zamioculcas zamiifolia",
+        "score": 0.516,
+        "common": "ZZ Plant",
+        "top3": [
+          "Zamioculcas zamiifolia 52%",
+          "Zamia furfuracea 3%",
+          "Cyrtomium falcatum 0%"
+        ],
+        "ms": 360
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1455,
+        "top1": "Zamioculcas zamiifolia",
+        "score": 0.42,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "pilea-peperomioides.jpg",
+      "species": [
+        "Pilea peperomioides"
+      ],
+      "genus": "Pilea",
+      "family": "Urticaceae",
+      "common": "Chinese money plant",
+      "bundledCare": false,
+      "difficulty": "clear",
+      "what": "potted Chinese money plant in flower",
+      "source": {
+        "wikimediaFile": "File:Chinese money plant.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "29bgang",
+        "url": "https://commons.wikimedia.org/wiki/File:Chinese_money_plant.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Pilea peperomioides",
+        "score": 0.939,
+        "common": "Chinese Money Plant",
+        "top3": [
+          "Pilea peperomioides 94%",
+          "Peperomia polybotrya 3%",
+          "Begonia santos-limae 0%"
+        ],
+        "ms": 364
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1269,
+        "top1": "Pilea peperomioides",
+        "score": 0.91,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "crassula-ovata.jpg",
+      "species": [
+        "Crassula ovata"
+      ],
+      "genus": "Crassula",
+      "family": "Crassulaceae",
+      "common": "Jade plant",
+      "bundledCare": false,
+      "difficulty": "clear",
+      "what": "jade plant leaves, close up (Pl@ntNet calibration put C. multicava first at 42% and C. ovata second at 33%: genus-level pass)",
+      "source": {
+        "wikimediaFile": "File:(MHNT) Crassula ovata - Serres du Museum de Toulouse.jpg",
+        "licence": "CC BY-SA 4.0",
+        "author": "Didier Descouens",
+        "url": "https://commons.wikimedia.org/wiki/File:(MHNT)_Crassula_ovata_-_Serres_du_Museum_de_Toulouse.jpg"
+      },
+      "plantnetCalibration": {
+        "top1": "Crassula multicava",
+        "score": 0.423,
+        "common": "Cape Province pygmyweed",
+        "top3": [
+          "Crassula multicava 42%",
+          "Crassula ovata 33%",
+          "Sedum makinoi 1%"
+        ],
+        "ms": 430
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1439,
+        "top1": "Crassula multicava",
+        "score": 0.41,
+        "demo": false,
+        "careSource": "generic",
+        "error": null
+      }
+    },
+    {
+      "file": "not-a-plant-mug.jpg",
+      "species": [],
+      "genus": null,
+      "family": null,
+      "common": null,
+      "bundledCare": false,
+      "difficulty": "negative",
+      "what": "a ceramic coffee mug on a table: NOT a plant. Pl@ntNet answers HTTP 404 (no species found). Expected app behaviour: tell the visitor it is not a plant and save nothing; today it saves a \"Demo result\" bundled plant with reason plantnet_error (calibration 2026-09-19)",
+      "source": {
+        "wikimediaFile": "File:-2019-09-17 Denby ΄Azure΄ Coffee mug.JPG",
+        "licence": "CC BY-SA 4.0",
+        "author": "Kolforn",
+        "url": "https://commons.wikimedia.org/wiki/File:-2019-09-17_Denby_΄Azure΄_Coffee_mug.JPG"
+      },
+      "plantnetCalibration": {
+        "error": "404 Request failed with status code 404",
+        "ms": 337
+      },
+      "liveBaseline": {
+        "status": 200,
+        "ms": 1060,
+        "top1": "Monstera deliciosa",
+        "score": 0.91,
+        "demo": true,
+        "careSource": "bundled",
+        "error": null
+      }
+    },
+    {
+      "file": "too-small.jpg",
+      "species": [],
+      "genus": null,
+      "family": null,
+      "common": null,
+      "bundledCare": false,
+      "difficulty": "negative",
+      "what": "a 48x48 px JPEG of about 1 KB, below the 10 KB minimum: the Add Plant page must refuse it before uploading (\"too small\") and the API answers 400 if posted directly",
+      "source": {
+        "note": "cropped from monstera-deliciosa.jpg"
+      },
+      "plantnetCalibration": {},
+      "liveBaseline": {
+        "status": 400,
+        "ms": 73,
+        "top1": null,
+        "score": null,
+        "demo": false,
+        "careSource": null,
+        "error": "That image is too small to identify (minimum 10 KB)"
+      }
+    },
+    {
+      "file": "not-an-image.txt",
+      "species": [],
+      "genus": null,
+      "family": null,
+      "common": null,
+      "bundledCare": false,
+      "difficulty": "negative",
+      "what": "a text file: the file picker must not accept it (accept=image/*) and the API answers 400 \"Only image files are accepted\" if posted directly",
+      "source": {
+        "note": "written by hand"
+      },
+      "plantnetCalibration": {},
+      "liveBaseline": {
+        "status": 400,
+        "ms": 70,
+        "top1": null,
+        "score": null,
+        "demo": false,
+        "careSource": null,
+        "error": "Only image files are accepted"
+      }
+    }
+  ],
+  "liveBaseline": {
+    "ranAt": "2026-09-19T01:43:05.691Z",
+    "base": "https://plantit.kalpkan.com",
+    "file": "baseline-2026-09-19.json",
+    "summary": "scripts/run-corpus.js against production: genus top-1 15/15, species top-1 14/15 (crassula-ovata -> Crassula multicava 41%), species in top-3 15/15, slowest identify 2145 ms, negatives 2/3 (not-a-plant-mug.jpg was saved as \"Monstera deliciosa 91%\" flagged demo: the FAIL). The live path resizes to 800 px (sharp) before Pl@ntNet, which is why it beats the raw-bytes plantnetCalibration numbers."
+  }
+}
